@@ -5,13 +5,13 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.llms import HuggingFaceEndpoint
 from chromadb.config import Settings
 import os
 import csv
-import tempfile
 from pathlib import Path
-import shutil
 import time
+import requests
 
 # Import your constants
 try:
@@ -72,6 +72,44 @@ def set_dark_theme():
         """,
         unsafe_allow_html=True
     )
+
+# ===============================
+# Load LLM using Hugging Face (FREE)
+# ===============================
+@st.cache_resource
+def load_llm():
+    """Load LLM using Hugging Face's free inference API"""
+    try:
+        # Check if HF token exists in secrets
+        if "HF_TOKEN" not in st.secrets:
+            st.error("""
+            ❌ Hugging Face token not found!
+            
+            Please add your Hugging Face token to Streamlit secrets:
+            1. Go to your app dashboard on Streamlit Cloud
+            2. Click on "Advanced Settings" → "Secrets"
+            3. Add: HF_TOKEN = "your_token_here"
+            
+            Get your free token at: https://huggingface.co/settings/tokens
+            """)
+            return None
+        
+        # Using HuggingFaceEndpoint for Llama 2
+        llm = HuggingFaceEndpoint(
+            repo_id="meta-llama/Llama-2-7b-chat-hf",  # Free Llama 2 model
+            huggingfacehub_api_token=st.secrets["HF_TOKEN"],
+            temperature=0.3,
+            max_new_tokens=500,
+            top_p=0.8,
+            repetition_penalty=1.1
+        )
+        
+        st.sidebar.success("✅ Using Hugging Face FREE tier")
+        return llm
+        
+    except Exception as e:
+        st.error(f"❌ Failed to load LLM: {str(e)}")
+        return None
 
 # ===============================
 # Create Database from PDFs
@@ -181,35 +219,21 @@ def init_vectorstore():
                 embedding_function=embeddings,
                 persist_directory=persist_dir
             )
+            
+            # Test if it works
+            try:
+                count = db._collection.count()
+                st.sidebar.success(f"✅ Database loaded with {count} documents")
+            except:
+                st.sidebar.warning("⚠️ Database loaded but may be empty")
+            
             return db
         else:
+            st.sidebar.warning("📁 No database found. Use the button below to create one.")
             return None
             
     except Exception as e:
-        st.error(f"Error initializing vector store: {str(e)}")
-        return None
-
-# ===============================
-# Load LLM (Using Together AI)
-# ===============================
-@st.cache_resource
-def load_llm():
-    """Load LLM using API-based approach"""
-    try:
-        from langchain_together import Together
-        
-        llm = Together(
-            model="meta-llama/Llama-2-7b-chat-hf",
-            temperature=0.3,
-            max_tokens=500,
-            top_p=0.8,
-            repetition_penalty=1.1,
-            together_api_key=st.secrets["TOGETHER_API_KEY"]
-        )
-        return llm
-        
-    except Exception as e:
-        st.error(f"Failed to load LLM: {str(e)}")
+        st.sidebar.error(f"❌ Error initializing vector store: {str(e)}")
         return None
 
 # ===============================
@@ -246,63 +270,75 @@ def main():
     if "messages" not in st.session_state:
         st.session_state.messages = []
     
-    if "db_initialized" not in st.session_state:
-        st.session_state.db_initialized = False
-    
     # Sidebar
     with st.sidebar:
         st.title("🤖 Wasla Solutions")
         st.markdown("---")
         
-        # Database status and creation button
+        # Hugging Face Token Status
+        st.subheader("🔑 API Status")
+        if "HF_TOKEN" in st.secrets:
+            st.success("✅ Hugging Face token configured")
+        else:
+            st.error("❌ HF_TOKEN not found in secrets")
+            st.info("""
+            To add your token:
+            1. Get token from: https://huggingface.co/settings/tokens
+            2. Add to Streamlit secrets as HF_TOKEN
+            """)
+        
+        st.markdown("---")
+        
+        # Database status and creation
         st.subheader("📚 Database Status")
         
         db_path = Path("db")
         db_exists = (db_path / "chroma.sqlite3").exists()
         
         if db_exists:
-            st.success("✅ Database ready")
-            
-            # Show database info
-            try:
-                size = sum(f.stat().st_size for f in db_path.glob('**/*') if f.is_file()) / (1024*1024)
-                st.info(f"📊 Size: {size:.1f} MB")
-            except:
-                pass
+            # Initialize vectorstore if not already done
+            if "vectorstore" not in st.session_state:
+                with st.spinner("🔄 Loading database..."):
+                    st.session_state.vectorstore = init_vectorstore()
         else:
-            st.error("❌ Database not found")
+            st.warning("❌ Database not found")
             
             # Check for PDFs
             docs_path = Path("docs")
             pdf_files = list(docs_path.glob("**/*.pdf")) if docs_path.exists() else []
             
             if pdf_files:
-                st.warning(f"📄 {len(pdf_files)} PDFs found")
-                if st.button("🚀 Create Database Now", type="primary"):
+                st.info(f"📄 {len(pdf_files)} PDFs found")
+                if st.button("🚀 Create Database Now", type="primary", use_container_width=True):
                     with st.spinner("Creating database... This may take a few minutes."):
                         success = create_database_from_pdfs()
                         if success:
-                            st.session_state.db_initialized = True
                             st.rerun()
             else:
                 st.warning("📁 No PDFs found")
-                st.info("Please add PDFs to the 'docs' folder in your GitHub repository")
+                st.info("Please add PDF files to the 'docs' folder in your GitHub repository")
         
         st.markdown("---")
         
         # Clear chat button
-        if st.button("🗑️ Clear Chat"):
+        if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
+        
+        # Show rate limits info
+        with st.expander("ℹ️ About Free Tier"):
+            st.write("""
+            **Hugging Face Free Tier Limits:**
+            - 30,000 input characters per month
+            - Rate limited
+            - Llama 2 7B model
+            
+            Perfect for demo and testing!
+            """)
     
     # Main chat interface
     st.title("💬 Wasla Solutions Chatbot")
     st.markdown("Ask questions about your PDF documents")
-    
-    # Initialize vectorstore if db exists
-    if "vectorstore" not in st.session_state and db_exists:
-        with st.spinner("🔄 Loading knowledge base..."):
-            st.session_state.vectorstore = init_vectorstore()
     
     # Display chat messages
     for message in st.session_state.messages:
@@ -371,7 +407,7 @@ def main():
                                 st.write(f"**Source {i}:**")
                                 st.write(doc.page_content[:200] + "...")
                     else:
-                        response = "⚠️ Could not load LLM. Please check API configuration."
+                        response = "⚠️ Could not load LLM. Please check your Hugging Face token."
                         st.markdown(response)
                     
                     st.session_state.messages.append({"role": "assistant", "content": response})
