@@ -153,10 +153,10 @@ def load_llm():
             except Exception as e:
                 status.update(label=f"❌ Failed to load LLM: {str(e)}", state="error")
                 return None
-                    
-    except Exception as e:
-        st.error(f"❌ Unexpected error: {str(e)}")
-        return None
+                
+        except Exception as e:
+            status.update(label=f"❌ Unexpected error: {str(e)}", state="error")
+            return None
 
 # ===============================
 # Create Database from PDFs
