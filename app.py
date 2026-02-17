@@ -73,133 +73,66 @@ def set_dark_theme():
         unsafe_allow_html=True
     )
 
-
 # ===============================
-# Load LLM using Hugging Face (with debugging)
+# Load LLM using Hugging Face (FIXED VERSION)
 # ===============================
 @st.cache_resource
 def load_llm():
-    """Load LLM using Hugging Face's free inference API with debugging"""
+    """Load LLM using Hugging Face's free inference API"""
     
-    # Add debug placeholder
-    debug_info = st.empty()
-    debug_info.info("🔍 Starting LLM loading process...")
-    
-    try:
-        # Check if HF token exists
-        debug_info.info("🔍 Checking for HF_TOKEN in secrets...")
-        if "HF_TOKEN" not in st.secrets:
-            debug_info.error("❌ HF_TOKEN not found in secrets!")
-            st.error("Please add your Hugging Face token to Streamlit secrets")
-            return None
+    # Use st.status for better progress tracking (Streamlit 1.27+)
+    with st.status("🔄 Loading LLM...", expanded=False) as status:
         
-        token = st.secrets["HF_TOKEN"]
-        debug_info.info(f"✅ Token found (starts with: {token[:10]}...)")
-        
-        # Test token validity with a simple API call
-        debug_info.info("🔍 Testing token validity...")
-        import requests
-        
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.get(
-            "https://huggingface.co/api/whoami",
-            headers=headers,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            user_info = response.json()
-            debug_info.info(f"✅ Token valid! Logged in as: {user_info.get('name', 'Unknown')}")
-        else:
-            debug_info.error(f"❌ Token invalid! Status: {response.status_code}")
-            return None
-        
-        # Try different approaches
-        debug_info.info("🔍 Attempting to initialize HuggingFaceEndpoint...")
-        
-        # Approach 1: Try with endpoint_url
         try:
-            from langchain_community.llms import HuggingFaceEndpoint
+            # Check if HF token exists
+            if "HF_TOKEN" not in st.secrets:
+                status.update(label="❌ HF_TOKEN not found!", state="error")
+                st.error("Please add your Hugging Face token to Streamlit secrets")
+                return None
             
-            debug_info.info("🔍 Creating HuggingFaceEndpoint...")
+            token = st.secrets["HF_TOKEN"]
+            status.update(label=f"✅ Token found", state="running")
             
-            llm = HuggingFaceEndpoint(
-                endpoint_url="https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf",
-                huggingfacehub_api_token=token,
-                task="text-generation",
-                max_new_tokens=100,  # Smaller for testing
-                temperature=0.3,
-                top_p=0.8,
-                do_sample=True,
+            # Test token validity with a simple API call
+            headers = {"Authorization": f"Bearer {token}"}
+            response = requests.get(
+                "https://huggingface.co/api/whoami",
+                headers=headers,
+                timeout=10
             )
             
-            # Test with a simple prompt
-            debug_info.info("🔍 Testing with a simple prompt...")
-            test_response = llm.invoke("Say 'Hello' in one word")
-            debug_info.success(f"✅ LLM loaded! Test response: {test_response[:50]}...")
+            if response.status_code != 200:
+                status.update(label="❌ Token invalid!", state="error")
+                return None
             
-            # Clear debug info
-            debug_info.empty()
-            return llm
-            
-        except Exception as e1:
-            debug_info.warning(f"⚠️ Approach 1 failed: {str(e1)}")
-            
-            # Approach 2: Try HuggingFaceHub
+            # Try direct InferenceClient (most reliable)
             try:
-                from langchain_community.llms import HuggingFaceHub
+                from huggingface_hub import InferenceClient
                 
-                debug_info.info("🔍 Trying HuggingFaceHub approach...")
+                status.update(label="🔄 Connecting to Hugging Face...")
                 
-                llm = HuggingFaceHub(
-                    repo_id="meta-llama/Llama-2-7b-chat-hf",
-                    huggingfacehub_api_token=token,
-                    model_kwargs={
-                        "temperature": 0.3,
-                        "max_new_tokens": 100,
-                        "top_p": 0.8,
-                    }
+                client = InferenceClient(
+                    model="meta-llama/Llama-2-7b-chat-hf",
+                    token=token,
+                    timeout=30
                 )
                 
-                # Test with a simple prompt
-                debug_info.info("🔍 Testing HuggingFaceHub...")
-                test_response = llm.invoke("Say 'Hello' in one word")
-                debug_info.success(f"✅ LLM loaded via Hub! Test response: {test_response[:50]}...")
+                # Simple test
+                status.update(label="🔄 Testing connection...")
+                test_response = client.text_generation(
+                    "Hello",
+                    max_new_tokens=5,
+                    temperature=0.3,
+                )
                 
-                debug_info.empty()
-                return llm
-                
-            except Exception as e2:
-                debug_info.warning(f"⚠️ Approach 2 failed: {str(e2)}")
-                
-                # Approach 3: Direct InferenceClient
-                try:
-                    from huggingface_hub import InferenceClient
+                # Create a simple wrapper class
+                class HuggingFaceLLM:
+                    def __init__(self, client):
+                        self.client = client
                     
-                    debug_info.info("🔍 Trying direct InferenceClient...")
-                    
-                    client = InferenceClient(
-                        model="meta-llama/Llama-2-7b-chat-hf",
-                        token=token,
-                    )
-                    
-                    # Simple test
-                    debug_info.info("🔍 Testing direct client...")
-                    test_response = client.text_generation(
-                        "Say 'Hello' in one word",
-                        max_new_tokens=10,
-                        temperature=0.3,
-                    )
-                    
-                    debug_info.success(f"✅ Direct client works! Test response: {test_response}")
-                    
-                    # Create a simple wrapper
-                    class SimpleLLM:
-                        def __init__(self, client):
-                            self.client = client
-                        
-                        def invoke(self, prompt):
-                            return self.client.text_generation(
+                    def invoke(self, prompt):
+                        try:
+                            response = self.client.text_generation(
                                 prompt,
                                 max_new_tokens=500,
                                 temperature=0.3,
@@ -207,20 +140,24 @@ def load_llm():
                                 repetition_penalty=1.1,
                                 do_sample=True,
                             )
+                            return response
+                        except Exception as e:
+                            return f"Error: {str(e)}"
                     
-                    debug_info.empty()
-                    return SimpleLLM(client)
-                    
-                except Exception as e3:
-                    debug_info.error(f"❌ All approaches failed!")
-                    debug_info.error(f"Error 1: {str(e1)}")
-                    debug_info.error(f"Error 2: {str(e2)}")
-                    debug_info.error(f"Error 3: {str(e3)}")
-                    return None
+                    def __call__(self, prompt):
+                        return self.invoke(prompt)
+                
+                status.update(label="✅ LLM loaded successfully!", state="complete")
+                return HuggingFaceLLM(client)
+                
+            except Exception as e:
+                status.update(label=f"❌ Failed to load LLM: {str(e)}", state="error")
+                return None
                     
     except Exception as e:
-        debug_info.error(f"❌ Unexpected error: {str(e)}")
+        st.error(f"❌ Unexpected error: {str(e)}")
         return None
+
 # ===============================
 # Create Database from PDFs
 # ===============================
@@ -295,18 +232,21 @@ def create_database_from_pdfs():
             persist_directory=str(db_path)
         )
         
-        status_text.text("💾 Saving vector store...")
         db.persist()
         progress_bar.progress(100)
         
         status_text.text("✅ Database created successfully!")
         time.sleep(2)
+        status_text.empty()
+        progress_bar.empty()
         return True
         
     except Exception as e:
         status_text.text(f"❌ Error: {str(e)}")
         progress_bar.progress(100)
         time.sleep(3)
+        status_text.empty()
+        progress_bar.empty()
         return False
 
 # ===============================
@@ -365,6 +305,33 @@ def save_to_csv(question, answer):
         pass  # Silently fail for CSV
 
 # ===============================
+# Process Question (separate function)
+# ===============================
+def process_question(prompt, vectorstore, llm):
+    """Process a single question"""
+    try:
+        # Create retriever
+        retriever = vectorstore.as_retriever(
+            search_kwargs={"k": 3}
+        )
+        
+        # Create QA chain
+        qa_chain = RetrievalQA.from_chain_type(
+            llm=llm,
+            chain_type="stuff",
+            retriever=retriever,
+            chain_type_kwargs={"prompt": WASLA_PROMPT},
+            return_source_documents=True
+        )
+        
+        # Get response
+        result = qa_chain.invoke({"query": prompt})
+        return result['result'], result['source_documents']
+        
+    except Exception as e:
+        raise Exception(f"Error processing question: {str(e)}")
+
+# ===============================
 # Main App
 # ===============================
 def main():
@@ -380,6 +347,12 @@ def main():
     if "messages" not in st.session_state:
         st.session_state.messages = []
     
+    if "llm" not in st.session_state:
+        st.session_state.llm = None
+    
+    if "vectorstore" not in st.session_state:
+        st.session_state.vectorstore = None
+    
     # Sidebar
     with st.sidebar:
         st.title("🤖 Wasla Solutions")
@@ -389,6 +362,15 @@ def main():
         st.subheader("🔑 API Status")
         if "HF_TOKEN" in st.secrets:
             st.success("✅ Hugging Face token configured")
+            
+            # Add button to load/refresh LLM
+            if st.button("🔄 Load LLM", use_container_width=True):
+                with st.spinner("Loading LLM..."):
+                    st.session_state.llm = load_llm()
+                    if st.session_state.llm:
+                        st.success("✅ LLM loaded successfully!")
+                    else:
+                        st.error("❌ Failed to load LLM")
         else:
             st.error("❌ HF_TOKEN not found in secrets")
             st.info("""
@@ -407,9 +389,11 @@ def main():
         
         if db_exists:
             # Initialize vectorstore if not already done
-            if "vectorstore" not in st.session_state:
+            if st.session_state.vectorstore is None:
                 with st.spinner("🔄 Loading database..."):
                     st.session_state.vectorstore = init_vectorstore()
+            else:
+                st.success("✅ Database ready")
         else:
             st.warning("❌ Database not found")
             
@@ -435,16 +419,14 @@ def main():
             st.session_state.messages = []
             st.rerun()
         
-        # Show rate limits info
-        with st.expander("ℹ️ About Free Tier"):
-            st.write("""
-            **Hugging Face Free Tier Limits:**
-            - 30,000 input characters per month
-            - Rate limited
-            - Llama 2 7B model
-            
-            Perfect for demo and testing!
-            """)
+        # Show status
+        with st.expander("ℹ️ System Status"):
+            status_lines = []
+            status_lines.append(f"🔑 HF Token: {'✅' if 'HF_TOKEN' in st.secrets else '❌'}")
+            status_lines.append(f"🤖 LLM: {'✅' if st.session_state.llm else '❌'}")
+            status_lines.append(f"📚 Database: {'✅' if db_exists else '❌'}")
+            status_lines.append(f"💬 Messages: {len(st.session_state.messages)}")
+            st.write("\n".join(status_lines))
     
     # Main chat interface
     st.title("💬 Wasla Solutions Chatbot")
@@ -454,6 +436,11 @@ def main():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            if "sources" in message and message["sources"]:
+                with st.expander("📚 Sources"):
+                    for i, source in enumerate(message["sources"], 1):
+                        st.write(f"**Source {i}:**")
+                        st.write(source[:200] + "...")
     
     # Chat input
     if prompt := st.chat_input("Ask a question about your documents..."):
@@ -466,61 +453,52 @@ def main():
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    # Check if database exists
+                    # Check prerequisites
                     if not db_exists:
-                        response = "⚠️ Please create the database first using the button in the sidebar."
-                        st.markdown(response)
-                        st.session_state.messages.append({"role": "assistant", "content": response})
+                        st.error("⚠️ Please create the database first using the button in the sidebar.")
                         return
                     
-                    # Check if vectorstore is loaded
-                    if "vectorstore" not in st.session_state or st.session_state.vectorstore is None:
+                    if st.session_state.vectorstore is None:
                         st.session_state.vectorstore = init_vectorstore()
                     
                     if st.session_state.vectorstore is None:
-                        response = "⚠️ Could not load knowledge base. Please try recreating the database."
-                        st.markdown(response)
-                        st.session_state.messages.append({"role": "assistant", "content": response})
+                        st.error("⚠️ Could not load knowledge base. Please try recreating the database.")
                         return
                     
-                    # Load LLM
-                    llm = load_llm()
+                    if st.session_state.llm is None:
+                        with st.spinner("Loading LLM for the first time..."):
+                            st.session_state.llm = load_llm()
                     
-                    if llm:
-                        # Create retriever
-                        retriever = st.session_state.vectorstore.as_retriever(
-                            search_kwargs={"k": 3}
-                        )
-                        
-                        # Create QA chain
-                        qa_chain = RetrievalQA.from_chain_type(
-                            llm=llm,
-                            chain_type="stuff",
-                            retriever=retriever,
-                            chain_type_kwargs={"prompt": WASLA_PROMPT},
-                            return_source_documents=True
-                        )
-                        
-                        # Get response
-                        result = qa_chain.invoke({"query": prompt})
-                        response = result['result']
-                        
-                        # Save to CSV
-                        save_to_csv(prompt, response)
-                        
-                        # Show response
-                        st.markdown(response)
-                        
-                        # Show sources in expander
-                        with st.expander("📚 View Sources"):
-                            for i, doc in enumerate(result['source_documents'], 1):
+                    if st.session_state.llm is None:
+                        st.error("⚠️ Could not load LLM. Please check your Hugging Face token and click 'Load LLM' in the sidebar.")
+                        return
+                    
+                    # Process question
+                    response, sources = process_question(
+                        prompt, 
+                        st.session_state.vectorstore, 
+                        st.session_state.llm
+                    )
+                    
+                    # Save to CSV
+                    save_to_csv(prompt, response)
+                    
+                    # Show response
+                    st.markdown(response)
+                    
+                    # Show sources
+                    if sources:
+                        with st.expander("📚 Sources"):
+                            for i, doc in enumerate(sources, 1):
                                 st.write(f"**Source {i}:**")
                                 st.write(doc.page_content[:200] + "...")
-                    else:
-                        response = "⚠️ Could not load LLM. Please check your Hugging Face token."
-                        st.markdown(response)
                     
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    # Add to session state
+                    st.session_state.messages.append({
+                        "role": "assistant", 
+                        "content": response,
+                        "sources": [doc.page_content for doc in sources] if sources else []
+                    })
                     
                 except Exception as e:
                     error_msg = f"❌ Error: {str(e)}"
