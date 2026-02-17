@@ -5,13 +5,13 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.llms import HuggingFaceEndpoint
 from chromadb.config import Settings
 import os
 import csv
 from pathlib import Path
 import time
-import requests
+import datetime
+import re
 
 # Import your constants
 try:
@@ -21,22 +21,32 @@ except ImportError:
         persist_directory = "db"
 
 # ===============================
-# Custom Prompt Template
+# Enhanced Prompt Template
 # ===============================
 WASLA_PROMPT = PromptTemplate(
-    template="""Use the following pieces of context to answer the question at the end. 
-If you don't know the answer, just say that you don't know, don't try to make up an answer.
+    template="""You are a knowledgeable assistant for Wasla Solutions. Your role is to provide helpful, accurate, and engaging responses based strictly on the provided context.
 
-Context: {context}
+CONTEXT FROM DOCUMENTS:
+{context}
 
-Question: {question}
+USER QUESTION: {question}
 
-Answer:""",
+INSTRUCTIONS:
+1. Answer based ONLY on the context provided above
+2. If the context doesn't contain the answer, say: "I don't have information about that in my knowledge base. Could you ask something else about Wasla Solutions?"
+3. Be conversational and professional, like a helpful colleague
+4. Keep responses concise but informative
+5. If relevant, mention specific details from the context
+6. Use bullet points for lists when helpful
+7. End by offering additional help
+8. Vary your greetings - don't start every response the same way
+
+YOUR RESPONSE:""",
     input_variables=["context", "question"]
 )
 
 # ===============================
-# Dark Theme
+# Dark Theme with Improvements
 # ===============================
 def set_dark_theme():
     st.markdown(
@@ -55,17 +65,42 @@ def set_dark_theme():
             font-size: 42px;
             font-weight: 700;
             color: #FFFFFF;
+            margin-bottom: 0px;
+        }
+        .stChatMessage {
+            background-color: #1E1E2E;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #2D3748;
+        }
+        [data-testid="chatMessageContent"] {
+            color: #E5E7EB !important;
         }
         textarea {
-            background-color: #111827;
-            color: #E5E7EB;
-            border-radius: 10px;
+            background-color: #111827 !important;
+            color: #E5E7EB !important;
+            border-radius: 10px !important;
+            border: 1px solid #2D3748 !important;
         }
         button {
             background-color: #2563EB !important;
             color: white !important;
-            border-radius: 10px;
+            border-radius: 10px !important;
             width: 100%;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background-color: #1D4ED8 !important;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+        }
+        .stExpander {
+            background-color: #1E1E2E;
+            border: 1px solid #2D3748;
+            border-radius: 10px;
+        }
+        .stSpinner > div {
+            border-color: #2563EB !important;
         }
         footer {visibility: hidden;}
         </style>
@@ -74,63 +109,135 @@ def set_dark_theme():
     )
 
 # ===============================
-# Load LLM using Hugging Face (FIXED VERSION)
+# Topic Extraction Helper
 # ===============================
-@st.cache_resource
-def load_llm():
-    """Load LLM using Hugging Face's new inference API"""
+def extract_topics_from_docs(docs, max_topics=3):
+    """Extract key topics from documents for better suggestions"""
     try:
-        from huggingface_hub import InferenceClient
+        # Common Wasla-related keywords to look for
+        topic_keywords = [
+            "services", "solutions", "products", "digital", "platform",
+            "fintech", "e-commerce", "marketing", "sales", "software",
+            "development", "mobile", "web", "UI/UX", "branding",
+            "consulting", "strategy", "innovation", "technology"
+        ]
         
-        if "HF_TOKEN" not in st.secrets:
-            st.error("❌ HF_TOKEN not found in secrets")
+        # Combine text from first few docs
+        all_text = " ".join([doc.page_content.lower() for doc in docs[:3]])
+        
+        # Find present keywords
+        found_topics = [kw for kw in topic_keywords if kw in all_text]
+        
+        # Return unique topics (remove duplicates)
+        return list(set(found_topics))[:max_topics]
+    except:
+        return ["services", "solutions", "digital transformation"]
+
+# ===============================
+# Load LLM using Groq (ENHANCED)
+# ===============================
+@st.cache_resource(ttl=3600)
+def load_llm():
+    """Load LLM using Groq's free API with enhanced prompting"""
+    try:
+        from groq import Groq
+        
+        # Check for API key in secrets
+        if "GROQ_API_KEY" not in st.secrets:
+            st.sidebar.error("❌ GROQ_API_KEY not found in secrets!")
             return None
         
-        token = st.secrets["HF_TOKEN"]
+        # Initialize Groq client
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         
-        # Use the new router endpoint
-        client = InferenceClient(
-            model="meta-llama/Llama-2-7b-chat-hf",
-            token=token,
-            timeout=30
-        )
-        # Note: InferenceClient automatically uses the correct endpoint
+        # Current working models (February 2026)
+        working_models = [
+            "llama-3.3-70b-versatile",           # Latest Llama (128K context)
+            "deepseek-r1-distill-llama-70b",      # Reasoning model
+            "meta-llama/llama-4-scout-17b-16e-instruct",  # Llama 4 (1M context)
+            "gemma2-9b-it"                         # Google's model (fast)
+        ]
         
-        # Test connection
-        try:
-            test_response = client.text_generation(
-                "Hello",
-                max_new_tokens=5,
-                temperature=0.3
-            )
-            st.sidebar.success("✅ LLM connected!")
-        except Exception as e:
-            st.sidebar.error(f"❌ Connection failed: {str(e)}")
-            return None
-        
-        # Create wrapper
-        class HuggingFaceLLM:
-            def __init__(self, client):
+        class GroqLLM:
+            def __init__(self, client, model_name):
                 self.client = client
+                self.model = model_name
+                self.model_info = {
+                    "llama-3.3-70b-versatile": "Llama 3.3 70B",
+                    "deepseek-r1-distill-llama-70b": "DeepSeek R1",
+                    "meta-llama/llama-4-scout-17b-16e-instruct": "Llama 4 Scout",
+                    "gemma2-9b-it": "Gemma 2 9B"
+                }.get(model_name, model_name)
             
             def invoke(self, prompt):
                 try:
-                    response = self.client.text_generation(
-                        prompt,
-                        max_new_tokens=500,
-                        temperature=0.3,
-                        top_p=0.8,
-                        repetition_penalty=1.1,
-                        do_sample=True,
+                    completion = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {"role": "system", "content": """You are Wasla AI, a knowledgeable and friendly assistant for Wasla Solutions. 
+
+**Core Personality:**
+- Professional, warm, and conversational
+- Adapt your greeting style - don't repeat the same opening every time
+- Be enthusiastic about helping users understand Wasla Solutions
+- Precise and accurate, never inventing information
+
+**Response Guidelines:**
+1. **Vary your openings** - Use different greetings:
+   - "I'd be happy to help with that!"
+   - "Great question! Let me share what I know."
+   - "Based on our documentation..."
+   - (Only use "Great to have you here!" occasionally, not every time)
+
+2. **When you have information:**
+   - Present it clearly with bullet points when helpful
+   - Reference specific details from context
+   - End by offering additional help
+
+3. **When information is missing:**
+   - Acknowledge politely
+   - Suggest related topics from your knowledge base
+   - Keep it helpful, not repetitive
+
+**Example when info exists:**
+"Based on our documentation, Wasla Solutions specializes in [specific details]. This includes [list relevant services]. Would you like me to elaborate on any of these areas?"
+
+**Example when info missing:**
+"I don't have specific information about that in my knowledge base. However, I can tell you about [related topic 1], [related topic 2], or [related topic 3]. Which would be most helpful?"""},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.4,
+                        max_tokens=600,
+                        top_p=0.9
                     )
-                    return response
+                    return completion.choices[0].message.content
                 except Exception as e:
-                    return f"Error: {str(e)}"
+                    return f"I apologize, but I encountered an error: {str(e)}. Please try again."
         
-        return HuggingFaceLLM(client)
+        # Test each model until we find one that works
+        status_placeholder = st.sidebar.empty()
+        status_placeholder.info("🔄 Initializing Wasla AI...")
         
+        for model_name in working_models:
+            try:
+                status_placeholder.info(f"🔄 Testing {model_name}...")
+                test_llm = GroqLLM(client, model_name)
+                test_response = test_llm.invoke("Say 'ready to help' briefly")
+                
+                if "Error" not in test_response and test_response and len(test_response) > 0:
+                    status_placeholder.success(f"✅ Wasla AI ready with {test_llm.model_info}")
+                    return test_llm
+            except Exception as e:
+                continue
+        
+        status_placeholder.error("❌ Could not initialize Wasla AI. Please check your API key.")
+        return None
+        
+    except ImportError:
+        st.sidebar.error("❌ Please install groq: pip install groq")
+        return None
     except Exception as e:
-        st.error(f"❌ Failed to load LLM: {str(e)}")
+        st.sidebar.error(f"❌ Setup error: {str(e)}")
         return None
 
 # ===============================
@@ -151,7 +258,7 @@ def create_database_from_pdfs():
         docs_path = Path("docs")
         if not docs_path.exists():
             docs_path.mkdir(exist_ok=True)
-            status_text.text("📁 Created docs folder. Please add PDFs to the 'docs' folder in your repository.")
+            status_text.text("📁 Created docs folder. Please add PDFs to the 'docs' folder.")
             progress_bar.progress(100)
             time.sleep(2)
             return False
@@ -227,7 +334,7 @@ def create_database_from_pdfs():
 # ===============================
 # Initialize Vector Store
 # ===============================
-@st.cache_resource
+@st.cache_resource(ttl=3600)
 def init_vectorstore():
     """Initialize the Chroma vector store"""
     try:
@@ -273,47 +380,66 @@ def save_to_csv(question, answer):
         with open(csv_file, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             if not file_exists:
-                writer.writerow(["Question", "Answer", "Timestamp"])
-            import datetime
-            writer.writerow([question, answer, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+                writer.writerow(["Question", "Answer", "Time", "Date"])
+            writer.writerow([question, answer, 
+                           datetime.datetime.now().strftime("%H:%M:%S"), 
+                           datetime.datetime.now().strftime("%Y-%m-%d")])
     except Exception as e:
-        pass  # Silently fail for CSV
+        pass
 
 # ===============================
-# Process Question (separate function)
+# Process Question (ENHANCED with Topic Extraction)
 # ===============================
 def process_question(prompt, vectorstore, llm):
-    """Process a single question"""
+    """Process a single question with enhanced context handling and topic extraction"""
     try:
-        # Create retriever
+        # Create retriever with MMR for better diversity
         retriever = vectorstore.as_retriever(
-            search_kwargs={"k": 3}
+            search_type="mmr",
+            search_kwargs={"k": 5, "fetch_k": 15}
         )
         
-        # Create QA chain
-        qa_chain = RetrievalQA.from_chain_type(
-            llm=llm,
-            chain_type="stuff",
-            retriever=retriever,
-            chain_type_kwargs={"prompt": WASLA_PROMPT},
-            return_source_documents=True
-        )
+        # Get relevant documents
+        docs = retriever.get_relevant_documents(prompt)
         
-        # Get response
-        result = qa_chain.invoke({"query": prompt})
-        return result['result'], result['source_documents']
+        # Extract topics for better suggestions (if needed)
+        topics = extract_topics_from_docs(docs)
+        
+        # Build context with source indication
+        context_parts = []
+        for i, doc in enumerate(docs, 1):
+            context_parts.append(f"[Document {i}]: {doc.page_content}")
+        
+        context = "\n\n".join(context_parts)
+        
+        # Add topic suggestions to prompt if this might be an unknown query
+        enhanced_prompt = prompt
+        if "?" in prompt and len(docs) < 2:  # If few relevant docs found
+            topic_str = ", ".join(topics[:3])
+            enhanced_prompt = f"""{prompt}
+
+(Note: If you don't have specific information about this, please suggest these relevant topics that I can help with: {topic_str})"""
+        
+        # Format prompt with context
+        formatted_prompt = WASLA_PROMPT.format(context=context, question=enhanced_prompt)
+        
+        # Get response from LLM
+        response = llm.invoke(formatted_prompt)
+        
+        return response, docs
         
     except Exception as e:
         raise Exception(f"Error processing question: {str(e)}")
 
 # ===============================
-# Main App
+# Main App (ENHANCED)
 # ===============================
 def main():
     st.set_page_config(
         page_title="Wasla Solutions Chatbot",
         page_icon="🤖",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
     
     set_dark_theme()
@@ -328,36 +454,67 @@ def main():
     if "vectorstore" not in st.session_state:
         st.session_state.vectorstore = None
     
+    # Add welcome message if not shown
+    if "welcome_shown" not in st.session_state:
+        st.session_state.welcome_shown = True
+        st.session_state.messages.append({
+            "role": "assistant", 
+            "content": """👋 **Hello! I'm Wasla AI, your intelligent assistant for all things Wasla Solutions.**
+
+I'm here to help you with:
+- 📋 **Information** about Wasla Solutions services and offerings
+- 🔍 **Details** from your documents and knowledge base
+- 💡 **Answers** to your specific questions
+
+**How I work:**
+- I only provide information found in your documents
+- I'll always show you my sources
+- If I don't know something, I'll be honest about it
+
+Feel free to ask me anything about the documents in my knowledge base. I'm ready to help! 🚀""",
+            "sources": []
+        })
+    
     # Sidebar
     with st.sidebar:
         st.title("🤖 Wasla Solutions")
         st.markdown("---")
         
-        # Hugging Face Token Status
-        st.subheader("🔑 API Status")
-        if "HF_TOKEN" in st.secrets:
-            st.success("✅ Hugging Face token configured")
+        # API Configuration
+        st.subheader("🔑 API Configuration")
+        
+        # Show current API status
+        if "GROQ_API_KEY" in st.secrets:
+            st.success("✅ Groq API key configured")
             
-            # Add button to load/refresh LLM
-            if st.button("🔄 Load LLM", use_container_width=True):
-                with st.spinner("Loading LLM..."):
+            # Load LLM button
+            if st.button("🔄 Initialize Wasla AI", use_container_width=True):
+                with st.spinner("Loading AI model..."):
                     st.session_state.llm = load_llm()
                     if st.session_state.llm:
-                        st.success("✅ LLM loaded successfully!")
+                        st.success("✅ Wasla AI initialized successfully!")
+                        # Add system ready message
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": "✅ **I'm ready to help!** You can now ask me questions about your documents. Feel free to ask about our services, solutions, or any specific information you need.",
+                            "sources": []
+                        })
                     else:
-                        st.error("❌ Failed to load LLM")
+                        st.error("❌ Failed to initialize AI")
         else:
-            st.error("❌ HF_TOKEN not found in secrets")
+            st.error("❌ GROQ_API_KEY not found")
             st.info("""
-            To add your token:
-            1. Get token from: https://huggingface.co/settings/tokens
-            2. Add to Streamlit secrets as HF_TOKEN
+            **To get a free Groq API key:**
+            1. Go to [console.groq.com](https://console.groq.com)
+            2. Sign up (free, no credit card)
+            3. Copy your API key
+            4. Add to secrets as GROQ_API_KEY
             """)
         
         st.markdown("---")
         
         # Database status and creation
-        st.subheader("📚 Database Status")
+        st.subheader("📚 Knowledge Base")
         
         db_path = Path("db")
         db_exists = (db_path / "chroma.sqlite3").exists()
@@ -365,12 +522,20 @@ def main():
         if db_exists:
             # Initialize vectorstore if not already done
             if st.session_state.vectorstore is None:
-                with st.spinner("🔄 Loading database..."):
+                with st.spinner("🔄 Loading knowledge base..."):
                     st.session_state.vectorstore = init_vectorstore()
             else:
-                st.success("✅ Database ready")
+                st.success("✅ Knowledge base ready")
+                
+            # Show database stats
+            if st.session_state.vectorstore:
+                try:
+                    count = st.session_state.vectorstore._collection.count()
+                    st.info(f"📊 {count} document chunks available")
+                except:
+                    pass
         else:
-            st.warning("❌ Database not found")
+            st.warning("❌ Knowledge base not found")
             
             # Check for PDFs
             docs_path = Path("docs")
@@ -378,44 +543,63 @@ def main():
             
             if pdf_files:
                 st.info(f"📄 {len(pdf_files)} PDFs found")
-                if st.button("🚀 Create Database Now", type="primary", use_container_width=True):
-                    with st.spinner("Creating database... This may take a few minutes."):
+                if st.button("🚀 Create Knowledge Base", type="primary", use_container_width=True):
+                    with st.spinner("Creating knowledge base... This may take a few minutes."):
                         success = create_database_from_pdfs()
                         if success:
+                            st.success("✅ Knowledge base created!")
                             st.rerun()
             else:
                 st.warning("📁 No PDFs found")
-                st.info("Please add PDF files to the 'docs' folder in your GitHub repository")
+                st.info("Please add PDF files to the 'docs' folder")
         
         st.markdown("---")
         
-        # Clear chat button
-        if st.button("🗑️ Clear Chat", use_container_width=True):
-            st.session_state.messages = []
-            st.rerun()
+        # Controls
+        st.subheader("🎮 Controls")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Reset AI", use_container_width=True):
+                st.cache_resource.clear()
+                st.session_state.llm = None
+                st.success("✅ AI reset")
+                st.rerun()
         
-        # Show status
+        with col2:
+            if st.button("🗑️ Clear Chat", use_container_width=True):
+                # Keep only the welcome message
+                welcome_msg = st.session_state.messages[0] if st.session_state.messages and "welcome_shown" in st.session_state else None
+                st.session_state.messages = [welcome_msg] if welcome_msg else []
+                st.rerun()
+        
+        # System status
         with st.expander("ℹ️ System Status"):
             status_lines = []
-            status_lines.append(f"🔑 HF Token: {'✅' if 'HF_TOKEN' in st.secrets else '❌'}")
-            status_lines.append(f"🤖 LLM: {'✅' if st.session_state.llm else '❌'}")
-            status_lines.append(f"📚 Database: {'✅' if db_exists else '❌'}")
+            status_lines.append(f"🔑 Groq Key: {'✅' if 'GROQ_API_KEY' in st.secrets else '❌'}")
+            status_lines.append(f"🤖 AI Model: {'✅' if st.session_state.llm else '❌'}")
+            status_lines.append(f"📚 Knowledge: {'✅' if db_exists else '❌'}")
             status_lines.append(f"💬 Messages: {len(st.session_state.messages)}")
             st.write("\n".join(status_lines))
+            
+            # Export chat
+            if os.path.exists("chat_history.csv"):
+                with open("chat_history.csv", "r") as f:
+                    st.download_button("📥 Export Chat", f, "chat_history.csv", use_container_width=True)
     
     # Main chat interface
-    st.title("💬 Wasla Solutions Chatbot")
-    st.markdown("Ask questions about your PDF documents")
+    st.title("💬 Wasla AI Assistant")
+    st.markdown("Ask me anything about your documents")
     
     # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if "sources" in message and message["sources"]:
-                with st.expander("📚 Sources"):
+                with st.expander("📚 View Sources"):
                     for i, source in enumerate(message["sources"], 1):
+                        preview = source[:200] + "..." if len(source) > 200 else source
                         st.write(f"**Source {i}:**")
-                        st.write(source[:200] + "...")
+                        st.write(preview)
     
     # Chat input
     if prompt := st.chat_input("Ask a question about your documents..."):
@@ -430,25 +614,31 @@ def main():
                 try:
                     # Check prerequisites
                     if not db_exists:
-                        st.error("⚠️ Please create the database first using the button in the sidebar.")
+                        response = "⚠️ **Knowledge base not found.** Please create one first using the button in the sidebar."
+                        st.markdown(response)
+                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
                         return
                     
                     if st.session_state.vectorstore is None:
                         st.session_state.vectorstore = init_vectorstore()
                     
                     if st.session_state.vectorstore is None:
-                        st.error("⚠️ Could not load knowledge base. Please try recreating the database.")
+                        response = "⚠️ **Could not load knowledge base.** Please try recreating it using the button in the sidebar."
+                        st.markdown(response)
+                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
                         return
                     
                     if st.session_state.llm is None:
-                        with st.spinner("Loading LLM for the first time..."):
+                        with st.spinner("Initializing AI for the first time..."):
                             st.session_state.llm = load_llm()
                     
                     if st.session_state.llm is None:
-                        st.error("⚠️ Could not load LLM. Please check your Hugging Face token and click 'Load LLM' in the sidebar.")
+                        response = "⚠️ **Could not initialize AI.** Please check your Groq API key in the sidebar and click 'Initialize Wasla AI'."
+                        st.markdown(response)
+                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
                         return
                     
-                    # Process question
+                    # Process question with enhanced features
                     response, sources = process_question(
                         prompt, 
                         st.session_state.vectorstore, 
@@ -463,10 +653,11 @@ def main():
                     
                     # Show sources
                     if sources:
-                        with st.expander("📚 Sources"):
+                        with st.expander("📚 View Sources"):
                             for i, doc in enumerate(sources, 1):
+                                preview = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
                                 st.write(f"**Source {i}:**")
-                                st.write(doc.page_content[:200] + "...")
+                                st.write(preview)
                     
                     # Add to session state
                     st.session_state.messages.append({
@@ -476,9 +667,9 @@ def main():
                     })
                     
                 except Exception as e:
-                    error_msg = f"❌ Error: {str(e)}"
+                    error_msg = f"❌ **Error:** {str(e)}"
                     st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                    st.session_state.messages.append({"role": "assistant", "content": error_msg, "sources": []})
 
 if __name__ == "__main__":
     main()
