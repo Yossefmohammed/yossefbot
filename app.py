@@ -73,55 +73,154 @@ def set_dark_theme():
         unsafe_allow_html=True
     )
 
+
 # ===============================
-# Load LLM using Hugging Face (FREE)
-# ===============================
-@st.cache_resource
-# ===============================
-# Load LLM using Hugging Face (FREE) - FIXED VERSION
+# Load LLM using Hugging Face (with debugging)
 # ===============================
 @st.cache_resource
 def load_llm():
-    """Load LLM using Hugging Face's free inference API"""
+    """Load LLM using Hugging Face's free inference API with debugging"""
+    
+    # Add debug placeholder
+    debug_info = st.empty()
+    debug_info.info("🔍 Starting LLM loading process...")
+    
     try:
-        # Check if HF token exists in secrets
+        # Check if HF token exists
+        debug_info.info("🔍 Checking for HF_TOKEN in secrets...")
         if "HF_TOKEN" not in st.secrets:
-            st.error("""
-            ❌ Hugging Face token not found!
-            
-            Please add your Hugging Face token to Streamlit secrets:
-            1. Go to your app dashboard on Streamlit Cloud
-            2. Click on "Advanced Settings" → "Secrets"
-            3. Add: HF_TOKEN = "your_token_here"
-            
-            Get your free token at: https://huggingface.co/settings/tokens
-            """)
+            debug_info.error("❌ HF_TOKEN not found in secrets!")
+            st.error("Please add your Hugging Face token to Streamlit secrets")
             return None
         
-        # Using HuggingFaceEndpoint with correct parameters
-        from langchain_community.llms import HuggingFaceEndpoint
+        token = st.secrets["HF_TOKEN"]
+        debug_info.info(f"✅ Token found (starts with: {token[:10]}...)")
         
-        llm = HuggingFaceEndpoint(
-            endpoint_url="https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf",
-            huggingfacehub_api_token=st.secrets["HF_TOKEN"],
-            task="text-generation",
-            max_new_tokens=500,
-            temperature=0.3,
-            top_p=0.8,
-            repetition_penalty=1.1,
-            do_sample=True,
+        # Test token validity with a simple API call
+        debug_info.info("🔍 Testing token validity...")
+        import requests
+        
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.get(
+            "https://huggingface.co/api/whoami",
+            headers=headers,
+            timeout=10
         )
         
-        st.sidebar.success("✅ Using Hugging Face FREE tier")
-        return llm
+        if response.status_code == 200:
+            user_info = response.json()
+            debug_info.info(f"✅ Token valid! Logged in as: {user_info.get('name', 'Unknown')}")
+        else:
+            debug_info.error(f"❌ Token invalid! Status: {response.status_code}")
+            return None
         
-    except ImportError:
-        st.error("❌ langchain-community not installed correctly")
-        return None
+        # Try different approaches
+        debug_info.info("🔍 Attempting to initialize HuggingFaceEndpoint...")
+        
+        # Approach 1: Try with endpoint_url
+        try:
+            from langchain_community.llms import HuggingFaceEndpoint
+            
+            debug_info.info("🔍 Creating HuggingFaceEndpoint...")
+            
+            llm = HuggingFaceEndpoint(
+                endpoint_url="https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf",
+                huggingfacehub_api_token=token,
+                task="text-generation",
+                max_new_tokens=100,  # Smaller for testing
+                temperature=0.3,
+                top_p=0.8,
+                do_sample=True,
+            )
+            
+            # Test with a simple prompt
+            debug_info.info("🔍 Testing with a simple prompt...")
+            test_response = llm.invoke("Say 'Hello' in one word")
+            debug_info.success(f"✅ LLM loaded! Test response: {test_response[:50]}...")
+            
+            # Clear debug info
+            debug_info.empty()
+            return llm
+            
+        except Exception as e1:
+            debug_info.warning(f"⚠️ Approach 1 failed: {str(e1)}")
+            
+            # Approach 2: Try HuggingFaceHub
+            try:
+                from langchain_community.llms import HuggingFaceHub
+                
+                debug_info.info("🔍 Trying HuggingFaceHub approach...")
+                
+                llm = HuggingFaceHub(
+                    repo_id="meta-llama/Llama-2-7b-chat-hf",
+                    huggingfacehub_api_token=token,
+                    model_kwargs={
+                        "temperature": 0.3,
+                        "max_new_tokens": 100,
+                        "top_p": 0.8,
+                    }
+                )
+                
+                # Test with a simple prompt
+                debug_info.info("🔍 Testing HuggingFaceHub...")
+                test_response = llm.invoke("Say 'Hello' in one word")
+                debug_info.success(f"✅ LLM loaded via Hub! Test response: {test_response[:50]}...")
+                
+                debug_info.empty()
+                return llm
+                
+            except Exception as e2:
+                debug_info.warning(f"⚠️ Approach 2 failed: {str(e2)}")
+                
+                # Approach 3: Direct InferenceClient
+                try:
+                    from huggingface_hub import InferenceClient
+                    
+                    debug_info.info("🔍 Trying direct InferenceClient...")
+                    
+                    client = InferenceClient(
+                        model="meta-llama/Llama-2-7b-chat-hf",
+                        token=token,
+                    )
+                    
+                    # Simple test
+                    debug_info.info("🔍 Testing direct client...")
+                    test_response = client.text_generation(
+                        "Say 'Hello' in one word",
+                        max_new_tokens=10,
+                        temperature=0.3,
+                    )
+                    
+                    debug_info.success(f"✅ Direct client works! Test response: {test_response}")
+                    
+                    # Create a simple wrapper
+                    class SimpleLLM:
+                        def __init__(self, client):
+                            self.client = client
+                        
+                        def invoke(self, prompt):
+                            return self.client.text_generation(
+                                prompt,
+                                max_new_tokens=500,
+                                temperature=0.3,
+                                top_p=0.8,
+                                repetition_penalty=1.1,
+                                do_sample=True,
+                            )
+                    
+                    debug_info.empty()
+                    return SimpleLLM(client)
+                    
+                except Exception as e3:
+                    debug_info.error(f"❌ All approaches failed!")
+                    debug_info.error(f"Error 1: {str(e1)}")
+                    debug_info.error(f"Error 2: {str(e2)}")
+                    debug_info.error(f"Error 3: {str(e3)}")
+                    return None
+                    
     except Exception as e:
-        st.error(f"❌ Failed to load LLM: {str(e)}")
+        debug_info.error(f"❌ Unexpected error: {str(e)}")
         return None
-
 # ===============================
 # Create Database from PDFs
 # ===============================
