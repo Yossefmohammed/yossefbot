@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Search in Your PDF
 
 A powerful PDF question-answering application built with Streamlit and LangChain that allows you to ask questions about your PDF documents and get AI-powered responses.
@@ -107,3 +108,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+=======
+# yossefbot
+>>>>>>> c43d2e93ad837a66434df210fcab9e768c0b2924
+# YossefBot
+
+AI chatbot project using LangChain and RAG.
