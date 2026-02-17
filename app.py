@@ -7,8 +7,9 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
 from langchain.chat_models import ChatOpenAI
+from langchain_community.huggingface_pipeline import HuggingFacePipeline
 from transformers import pipeline
-from langchain.chat_models import HuggingFacePipeline
+
 
 # =========================
 # Constants
@@ -71,15 +72,14 @@ def init_vectorstore():
 # =========================
 @st.cache_resource
 def load_llm():
-    """Load a free HuggingFace model"""
+    """Load a free HuggingFace model locally"""
     try:
-        # Use a local pipeline (or HF Inference API)
         hf_pipeline = pipeline(
             "text-generation",
-            model="meta-llama/Llama-2-7b-chat-hf",  # can be replaced with smaller free models
+            model="tiiuae/falcon-7b-instruct",  # smaller free model
             max_new_tokens=500,
             temperature=0.3,
-            device_map="auto"  # uses GPU if available
+            device_map="auto"  # GPU if available, CPU otherwise
         )
         llm = HuggingFacePipeline(pipeline=hf_pipeline)
         return llm
