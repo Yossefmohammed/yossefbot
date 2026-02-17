@@ -1,12 +1,24 @@
+# Streamlit app & UI
 streamlit==1.28.1
+
+# LangChain & extensions
 langchain==0.1.0
 langchain-community==0.0.10
 langchain-together==0.1.0
+
+# Vector DB
 chromadb==0.4.18
-sentence-transformers==2.2.2
+
+# PDF processing
 pypdf==3.17.4
+
+# PyTorch & embeddings
 torch==2.1.0
-transformers==4.36.0
 accelerate==0.25.0
+sentence-transformers==2.6.1
+transformers==4.41.2
+huggingface-hub==0.23.0
+
+# Utilities
 python-dotenv==1.0.0
 pandas==2.1.3
