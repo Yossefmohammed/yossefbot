@@ -2,11 +2,10 @@ import streamlit as st
 import os
 from pathlib import Path
 from langchain_community.vectorstores import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
-from langchain_community.chat_models import ChatOpenAI  # Keep OpenAI as fallback
 from transformers import pipeline
 
 # =========================
@@ -69,16 +68,16 @@ def init_vectorstore():
 # =========================
 @st.cache_resource
 def load_llm():
-    """Use HuggingFace pipeline directly instead of deprecated HuggingFacePipeline"""
     try:
         hf_pipe = pipeline(
             "text-generation",
-            model="tiiuae/falcon-7b-instruct",  # or smaller
+            model="tiiuae/falcon-7b-instruct",
             max_new_tokens=300,
             temperature=0.3,
             device_map="auto"
         )
-        # Wrap it in a simple function for langchain
+
+        # Wrap in simple function for LangChain RetrievalQA
         def hf_llm(prompt):
             return hf_pipe(prompt)[0]["generated_text"]
         return hf_llm
