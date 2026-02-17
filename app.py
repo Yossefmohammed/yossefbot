@@ -69,12 +69,13 @@ def init_vectorstore():
 @st.cache_resource
 def load_llm():
     try:
+        # Use a small model that fits on CPU (works on Streamlit Cloud)
         hf_pipe = pipeline(
             "text-generation",
-            model="tiiuae/falcon-7b-instruct",
-            max_new_tokens=300,
+            model="google/flan-t5-small",  # << smaller model
+            max_new_tokens=150,
             temperature=0.3,
-            device_map="auto"
+            device="cpu"  # force CPU
         )
 
         # Wrap in simple function for LangChain RetrievalQA
