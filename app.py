@@ -2,7 +2,7 @@ import streamlit as st
 import os
 from pathlib import Path
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
@@ -73,8 +73,8 @@ def load_llm():
     try:
         hf_pipe = pipeline(
             "text-generation",
-            model="tiiuae/falcon-7b-instruct",
-            max_new_tokens=500,
+            model="tiiuae/falcon-7b-instruct",  # or smaller
+            max_new_tokens=300,
             temperature=0.3,
             device_map="auto"
         )
