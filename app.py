@@ -6,7 +6,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
-from langchain_together import Together
+from langchain.chat_models import ChatOpenAI  # Changed from Together
 
 # =========================
 # Constants
@@ -66,22 +66,22 @@ def init_vectorstore():
         return db
 
 # =========================
-# Load Together LLM
+# Load OpenAI LLM
 # =========================
 @st.cache_resource
 def load_llm():
-    """Load Together LLM from API key"""
+    """Load OpenAI GPT LLM"""
     try:
-        api_key = st.secrets["TOGETHER_API_KEY"]
-        llm = Together(
-            model="meta-llama/Llama-2-7b-chat-hf",
-            together_api_key=api_key,
+        api_key = st.secrets["OPENAI_API_KEY"]  # Get key from Streamlit secrets
+        llm = ChatOpenAI(
+            model_name="gpt-3.5-turbo",
             temperature=0.3,
+            openai_api_key=api_key,
             max_tokens=500
         )
         return llm
     except KeyError:
-        st.error("❌ API key not found in Streamlit secrets. Add TOGETHER_API_KEY in secrets.toml")
+        st.error("❌ API key not found in Streamlit secrets. Add OPENAI_API_KEY in secrets.toml")
         return None
     except Exception as e:
         st.error(f"❌ Failed to load LLM: {e}")
