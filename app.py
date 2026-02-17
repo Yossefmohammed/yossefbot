@@ -6,6 +6,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
+from langchain_together import Together
 
 # Constants
 class CHROMA_SETTINGS:
@@ -47,7 +48,6 @@ def init_vectorstore():
         model_kwargs={"device": "cpu"}
     )
 
-    # If DB exists, load it
     if os.path.exists(os.path.join(persist_dir, "chroma.sqlite3")):
         db = Chroma(
             embedding_function=embeddings,
@@ -58,6 +58,24 @@ def init_vectorstore():
         st.info("⚠️ Vector store not found. Building now...")
         db = build_vectorstore()
         return db
+
+# Load LLM
+@st.cache_resource
+def load_llm():
+    """Load Together LLM"""
+    try:
+        # API key from Streamlit secrets
+        api_key = st.secrets["TOGETHER_API_KEY"]
+        llm = Together(
+            model="meta-llama/Llama-2-7b-chat-hf",
+            together_api_key=api_key,
+            temperature=0.3,
+            max_tokens=500
+        )
+        return llm
+    except Exception as e:
+        st.error(f"Failed to load LLM: {e}")
+        return None
 
 # Main app
 def main():
@@ -72,14 +90,19 @@ def main():
         with st.spinner("Loading knowledge base..."):
             st.session_state.vectorstore = init_vectorstore()
 
+    if "llm" not in st.session_state:
+        with st.spinner("Loading language model..."):
+            st.session_state.llm = load_llm()
+
     st.title("💬 Wasla Solutions Chatbot")
     st.markdown("Ask questions about your PDF documents")
 
-    # Chat display
+    # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Chat input
     if prompt := st.chat_input("Ask a question about your documents..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -88,12 +111,12 @@ def main():
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    if not st.session_state.vectorstore:
-                        response = "⚠️ Knowledge base not loaded."
+                    if not st.session_state.vectorstore or not st.session_state.llm:
+                        response = "⚠️ Knowledge base or LLM not loaded."
                     else:
                         retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k":3})
                         qa_chain = RetrievalQA.from_chain_type(
-                            llm=None,  # Replace with your LLM
+                            llm=st.session_state.llm,
                             chain_type="stuff",
                             retriever=retriever,
                             chain_type_kwargs={"prompt": WASLA_PROMPT},
