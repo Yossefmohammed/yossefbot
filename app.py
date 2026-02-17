@@ -78,85 +78,60 @@ def set_dark_theme():
 # ===============================
 @st.cache_resource
 def load_llm():
-    """Load LLM using Hugging Face's free inference API"""
-    
-    # Use st.status for better progress tracking (Streamlit 1.27+)
-    with st.status("🔄 Loading LLM...", expanded=False) as status:
+    """Load LLM using Hugging Face's new inference API"""
+    try:
+        from huggingface_hub import InferenceClient
         
-        try:
-            # Check if HF token exists
-            if "HF_TOKEN" not in st.secrets:
-                status.update(label="❌ HF_TOKEN not found!", state="error")
-                st.error("Please add your Hugging Face token to Streamlit secrets")
-                return None
-            
-            token = st.secrets["HF_TOKEN"]
-            status.update(label=f"✅ Token found", state="running")
-            
-            # Test token validity with a simple API call
-            headers = {"Authorization": f"Bearer {token}"}
-            response = requests.get(
-                "https://huggingface.co/api/whoami",
-                headers=headers,
-                timeout=10
-            )
-            
-            if response.status_code != 200:
-                status.update(label="❌ Token invalid!", state="error")
-                return None
-            
-            # Try direct InferenceClient (most reliable)
-            try:
-                from huggingface_hub import InferenceClient
-                
-                status.update(label="🔄 Connecting to Hugging Face...")
-                
-                client = InferenceClient(
-                    model="meta-llama/Llama-2-7b-chat-hf",
-                    token=token,
-                    timeout=30
-                )
-                
-                # Simple test
-                status.update(label="🔄 Testing connection...")
-                test_response = client.text_generation(
-                    "Hello",
-                    max_new_tokens=5,
-                    temperature=0.3,
-                )
-                
-                # Create a simple wrapper class
-                class HuggingFaceLLM:
-                    def __init__(self, client):
-                        self.client = client
-                    
-                    def invoke(self, prompt):
-                        try:
-                            response = self.client.text_generation(
-                                prompt,
-                                max_new_tokens=500,
-                                temperature=0.3,
-                                top_p=0.8,
-                                repetition_penalty=1.1,
-                                do_sample=True,
-                            )
-                            return response
-                        except Exception as e:
-                            return f"Error: {str(e)}"
-                    
-                    def __call__(self, prompt):
-                        return self.invoke(prompt)
-                
-                status.update(label="✅ LLM loaded successfully!", state="complete")
-                return HuggingFaceLLM(client)
-                
-            except Exception as e:
-                status.update(label=f"❌ Failed to load LLM: {str(e)}", state="error")
-                return None
-                
-        except Exception as e:
-            status.update(label=f"❌ Unexpected error: {str(e)}", state="error")
+        if "HF_TOKEN" not in st.secrets:
+            st.error("❌ HF_TOKEN not found in secrets")
             return None
+        
+        token = st.secrets["HF_TOKEN"]
+        
+        # Use the new router endpoint
+        client = InferenceClient(
+            model="meta-llama/Llama-2-7b-chat-hf",
+            token=token,
+            timeout=30
+        )
+        # Note: InferenceClient automatically uses the correct endpoint
+        
+        # Test connection
+        try:
+            test_response = client.text_generation(
+                "Hello",
+                max_new_tokens=5,
+                temperature=0.3
+            )
+            st.sidebar.success("✅ LLM connected!")
+        except Exception as e:
+            st.sidebar.error(f"❌ Connection failed: {str(e)}")
+            return None
+        
+        # Create wrapper
+        class HuggingFaceLLM:
+            def __init__(self, client):
+                self.client = client
+            
+            def invoke(self, prompt):
+                try:
+                    response = self.client.text_generation(
+                        prompt,
+                        max_new_tokens=500,
+                        temperature=0.3,
+                        top_p=0.8,
+                        repetition_penalty=1.1,
+                        do_sample=True,
+                    )
+                    return response
+                except Exception as e:
+                    return f"Error: {str(e)}"
+        
+        return HuggingFaceLLM(client)
+        
+    except Exception as e:
+        st.error(f"❌ Failed to load LLM: {str(e)}")
+        return None
 
 # ===============================
 # Create Database from PDFs
