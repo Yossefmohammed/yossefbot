@@ -8,14 +8,15 @@ from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
 from langchain_together import Together
 
+# =========================
 # Constants
+# =========================
 class CHROMA_SETTINGS:
     persist_directory = "chroma"
 
-# Prompt template
 WASLA_PROMPT = PromptTemplate(
     template="""
-Use the following pieces of context to answer the question. 
+Use the following pieces of context to answer the question.
 If you don't know, say that you don't know.
 
 Context: {context}
@@ -26,7 +27,9 @@ Answer:""",
     input_variables=["context", "question"]
 )
 
-# Dark theme
+# =========================
+# Styling
+# =========================
 def set_dark_theme():
     st.markdown("""
     <style>
@@ -38,7 +41,9 @@ def set_dark_theme():
     </style>
     """, unsafe_allow_html=True)
 
-# Initialize vector store
+# =========================
+# Vector Store
+# =========================
 @st.cache_resource
 def init_vectorstore():
     """Load or build the vector store"""
@@ -48,7 +53,8 @@ def init_vectorstore():
         model_kwargs={"device": "cpu"}
     )
 
-    if os.path.exists(os.path.join(persist_dir, "chroma.sqlite3")):
+    db_file = os.path.join(persist_dir, "chroma.sqlite3")
+    if os.path.exists(db_file):
         db = Chroma(
             embedding_function=embeddings,
             persist_directory=persist_dir
@@ -59,12 +65,13 @@ def init_vectorstore():
         db = build_vectorstore()
         return db
 
-# Load LLM
+# =========================
+# Load Together LLM
+# =========================
 @st.cache_resource
 def load_llm():
-    """Load Together LLM"""
+    """Load Together LLM from API key"""
     try:
-        # API key from Streamlit secrets
         api_key = st.secrets["TOGETHER_API_KEY"]
         llm = Together(
             model="meta-llama/Llama-2-7b-chat-hf",
@@ -73,11 +80,16 @@ def load_llm():
             max_tokens=500
         )
         return llm
+    except KeyError:
+        st.error("❌ API key not found in Streamlit secrets. Add TOGETHER_API_KEY in secrets.toml")
+        return None
     except Exception as e:
-        st.error(f"Failed to load LLM: {e}")
+        st.error(f"❌ Failed to load LLM: {e}")
         return None
 
+# =========================
 # Main app
+# =========================
 def main():
     st.set_page_config(page_title="Wasla Chatbot", page_icon="🤖", layout="wide")
     set_dark_theme()
@@ -97,7 +109,7 @@ def main():
     st.title("💬 Wasla Solutions Chatbot")
     st.markdown("Ask questions about your PDF documents")
 
-    # Display chat messages
+    # Display previous messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -114,7 +126,7 @@ def main():
                     if not st.session_state.vectorstore or not st.session_state.llm:
                         response = "⚠️ Knowledge base or LLM not loaded."
                     else:
-                        retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k":3})
+                        retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k": 3})
                         qa_chain = RetrievalQA.from_chain_type(
                             llm=st.session_state.llm,
                             chain_type="stuff",
@@ -123,12 +135,12 @@ def main():
                             return_source_documents=True
                         )
                         result = qa_chain.invoke({"query": prompt})
-                        response = result['result']
+                        response = result.get('result', "⚠️ No answer returned")
 
                     st.markdown(response)
                     st.session_state.messages.append({"role": "assistant", "content": response})
                 except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                    st.error(f"❌ Error: {e}")
                     st.session_state.messages.append({"role": "assistant", "content": str(e)})
 
 if __name__ == "__main__":
