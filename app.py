@@ -77,6 +77,10 @@ def set_dark_theme():
 # Load LLM using Hugging Face (FREE)
 # ===============================
 @st.cache_resource
+# ===============================
+# Load LLM using Hugging Face (FREE) - FIXED VERSION
+# ===============================
+@st.cache_resource
 def load_llm():
     """Load LLM using Hugging Face's free inference API"""
     try:
@@ -94,19 +98,26 @@ def load_llm():
             """)
             return None
         
-        # Using HuggingFaceEndpoint for Llama 2
+        # Using HuggingFaceEndpoint with correct parameters
+        from langchain_community.llms import HuggingFaceEndpoint
+        
         llm = HuggingFaceEndpoint(
-            repo_id="meta-llama/Llama-2-7b-chat-hf",  # Free Llama 2 model
+            endpoint_url="https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf",
             huggingfacehub_api_token=st.secrets["HF_TOKEN"],
-            temperature=0.3,
+            task="text-generation",
             max_new_tokens=500,
+            temperature=0.3,
             top_p=0.8,
-            repetition_penalty=1.1
+            repetition_penalty=1.1,
+            do_sample=True,
         )
         
         st.sidebar.success("✅ Using Hugging Face FREE tier")
         return llm
         
+    except ImportError:
+        st.error("❌ langchain-community not installed correctly")
+        return None
     except Exception as e:
         st.error(f"❌ Failed to load LLM: {str(e)}")
         return None
