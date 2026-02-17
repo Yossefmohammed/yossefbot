@@ -6,10 +6,8 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
-from langchain_community.chat_models import ChatOpenAI
-from langchain_community.huggingface_pipeline import HuggingFacePipeline
+from langchain_community.chat_models import ChatOpenAI  # Keep OpenAI as fallback
 from transformers import pipeline
-
 
 # =========================
 # Constants
@@ -49,7 +47,6 @@ def set_dark_theme():
 # =========================
 @st.cache_resource
 def init_vectorstore():
-    """Load or build the vector store"""
     persist_dir = CHROMA_SETTINGS.persist_directory
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-mpnet-base-v2",
@@ -68,21 +65,23 @@ def init_vectorstore():
             return None
 
 # =========================
-# Load OpenAI LLM
+# Load LLM
 # =========================
 @st.cache_resource
 def load_llm():
-    """Load a free HuggingFace model locally"""
+    """Use HuggingFace pipeline directly instead of deprecated HuggingFacePipeline"""
     try:
-        hf_pipeline = pipeline(
+        hf_pipe = pipeline(
             "text-generation",
-            model="tiiuae/falcon-7b-instruct",  # smaller free model
+            model="tiiuae/falcon-7b-instruct",
             max_new_tokens=500,
             temperature=0.3,
-            device_map="auto"  # GPU if available, CPU otherwise
+            device_map="auto"
         )
-        llm = HuggingFacePipeline(pipeline=hf_pipeline)
-        return llm
+        # Wrap it in a simple function for langchain
+        def hf_llm(prompt):
+            return hf_pipe(prompt)[0]["generated_text"]
+        return hf_llm
     except Exception as e:
         st.error(f"❌ Failed to load HuggingFace LLM: {e}")
         return None
@@ -94,7 +93,6 @@ def main():
     st.set_page_config(page_title="Wasla Chatbot", page_icon="🤖", layout="wide")
     set_dark_theme()
 
-    # Session state
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
@@ -107,7 +105,7 @@ def main():
             st.session_state.llm = load_llm()
     
     if not st.session_state.llm:
-        st.warning("⚠️ LLM not loaded. Please check your API key.")
+        st.warning("⚠️ LLM not loaded. Please check your setup.")
         return
     if not st.session_state.vectorstore:
         st.warning("⚠️ Vector store not loaded. Please check your setup.")
@@ -116,12 +114,10 @@ def main():
     st.title("💬 Wasla Solutions Chatbot")
     st.markdown("Ask questions about your PDF documents")
 
-    # Display previous messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Chat input
     if prompt := st.chat_input("Ask a question about your documents..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -141,7 +137,6 @@ def main():
                     result = qa_chain.invoke({"query": prompt})
                     response = result.get("result", "⚠️ No answer returned")
 
-                    # Optional: show sources
                     sources = result.get("source_documents", [])
                     if sources:
                         response += "\n\n**Sources:**\n" + "\n".join(
