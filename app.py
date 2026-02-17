@@ -6,7 +6,6 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
-from transformers import pipeline
 from langchain.llms import HuggingFacePipeline
 from transformers import pipeline
 
@@ -54,8 +53,7 @@ def init_vectorstore():
         model_kwargs={"device": "cpu"}
     )
 
-    db_file = os.path.join(persist_dir, "chroma.sqlite3")
-    if os.path.exists(db_file):
+    if os.path.exists(persist_dir) and os.listdir(persist_dir):
         return Chroma(embedding_function=embeddings, persist_directory=persist_dir)
     else:
         st.info("⚠️ Vector store not found. Building now...")
@@ -73,14 +71,12 @@ def load_llm():
     try:
         hf_pipe = pipeline(
             "text-generation",
-            model="tiiuae/falcon-7b-instruct",
+            model="TheBloke/vicuna-7B-1.1-HF",  # smaller, CPU-friendly
             max_new_tokens=300,
             temperature=0.3,
-            device="cpu"  # must be CPU on Streamlit Cloud
+            device="cpu"
         )
-
-        llm = HuggingFacePipeline(pipeline=hf_pipe)
-        return llm
+        return HuggingFacePipeline(pipeline=hf_pipe)
     except Exception as e:
         st.error(f"❌ Failed to load HuggingFace LLM: {e}")
         return None
@@ -113,10 +109,12 @@ def main():
     st.title("💬 Wasla Solutions Chatbot")
     st.markdown("Ask questions about your PDF documents")
 
+    # Display chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Chat input
     if prompt := st.chat_input("Ask a question about your documents..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -133,7 +131,8 @@ def main():
                         chain_type_kwargs={"prompt": WASLA_PROMPT},
                         return_source_documents=True
                     )
-                    result = qa_chain.invoke({"query": prompt})
+                    # Use run() instead of invoke()
+                    result = qa_chain({"query": prompt})
                     response = result.get("result", "⚠️ No answer returned")
 
                     sources = result.get("source_documents", [])
