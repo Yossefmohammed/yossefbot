@@ -7,6 +7,8 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
 from langchain.chat_models import ChatOpenAI
+from transformers import pipeline
+from langchain.chat_models import HuggingFacePipeline
 
 # =========================
 # Constants
@@ -69,21 +71,20 @@ def init_vectorstore():
 # =========================
 @st.cache_resource
 def load_llm():
-    """Load OpenAI GPT LLM"""
+    """Load a free HuggingFace model"""
     try:
-        api_key = st.secrets["OPENAI_API_KEY"]
-        llm = ChatOpenAI(
-            model_name="gpt-3.5-turbo",
+        # Use a local pipeline (or HF Inference API)
+        hf_pipeline = pipeline(
+            "text-generation",
+            model="meta-llama/Llama-2-7b-chat-hf",  # can be replaced with smaller free models
+            max_new_tokens=500,
             temperature=0.3,
-            openai_api_key=api_key,
-            max_tokens=500
+            device_map="auto"  # uses GPU if available
         )
+        llm = HuggingFacePipeline(pipeline=hf_pipeline)
         return llm
-    except KeyError:
-        st.error("❌ API key not found in Streamlit secrets. Add OPENAI_API_KEY in secrets.toml")
-        return None
     except Exception as e:
-        st.error(f"❌ Failed to load LLM: {e}")
+        st.error(f"❌ Failed to load HuggingFace LLM: {e}")
         return None
 
 # =========================
