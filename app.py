@@ -7,6 +7,8 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from ingest import build_vectorstore
 from transformers import pipeline
+from langchain.llms import HuggingFacePipeline
+from transformers import pipeline
 
 # =========================
 # Constants
@@ -69,19 +71,16 @@ def init_vectorstore():
 @st.cache_resource
 def load_llm():
     try:
-        # Use a small model that fits on CPU (works on Streamlit Cloud)
         hf_pipe = pipeline(
             "text-generation",
-            model="google/flan-t5-small",  # << smaller model
-            max_new_tokens=150,
+            model="tiiuae/falcon-7b-instruct",
+            max_new_tokens=300,
             temperature=0.3,
-            device="cpu"  # force CPU
+            device="cpu"  # must be CPU on Streamlit Cloud
         )
 
-        # Wrap in simple function for LangChain RetrievalQA
-        def hf_llm(prompt):
-            return hf_pipe(prompt)[0]["generated_text"]
-        return hf_llm
+        llm = HuggingFacePipeline(pipeline=hf_pipe)
+        return llm
     except Exception as e:
         st.error(f"❌ Failed to load HuggingFace LLM: {e}")
         return None
