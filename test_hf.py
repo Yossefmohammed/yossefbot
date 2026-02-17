@@ -2,11 +2,12 @@ from groq import Groq
 import os
 
 # Hardcode your API key for testing (remove after testing!)
-api_key = "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"  # Replace with your actual key
+import os
+API_KEY = os.getenv("GROQ_API_KEY")  # Replace with your actual key
 
 print("1️⃣ Testing Groq connection...")
 try:
-    client = Groq(api_key=api_key)
+    client = Groq(api_key=E)
     
     # Test with a simple completion
     completion = client.chat.completions.create(
