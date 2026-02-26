@@ -86,6 +86,41 @@ class ResponseVariations:
         return random.choice(cls.UNKNOWN_RESPONSES).format(topics=topics_str)
 
 # ===============================
+# Greeting Detection
+# ===============================
+def is_greeting(query):
+    """Detect if the user query is a simple greeting or chitchat."""
+    greeting_patterns = [
+        r'\b(hi|hello|hey|greetings|howdy|sup|yo)\b',
+        r'how are you',
+        r'how\'s it going',
+        r'what\'s up',
+        r'good (morning|afternoon|evening)',
+        r'nice to meet you',
+    ]
+    query_lower = query.lower().strip()
+    # Also check very short queries like "hi", "hello"
+    if len(query_lower.split()) <= 3:
+        for pattern in greeting_patterns:
+            if re.search(pattern, query_lower):
+                return True
+    return False
+
+# ===============================
+# Greeting Responses (varied)
+# ===============================
+def get_greeting_response():
+    """Return a random friendly greeting response without context."""
+    responses = [
+        "Hi there! 👋 I'm Wasla AI. How can I help you explore Wasla Solutions today?",
+        "Hello! Great to have you here. What would you like to know about Wasla?",
+        "Hey! I'm here to assist with any questions about Wasla Solutions. What's on your mind?",
+        "Hi! Ready to help you discover more about our digital solutions. What interests you?",
+        "Hello! Feel free to ask me anything about Wasla's services, approach, or expertise.",
+    ]
+    return random.choice(responses)
+
+# ===============================
 # Enhanced Prompt Template
 # ===============================
 WASLA_PROMPT = PromptTemplate(
@@ -203,11 +238,15 @@ def set_dark_theme():
     )
 
 # ===============================
-# Topic Extraction Helper
+# Topic Extraction Helper (now more selective)
 # ===============================
 def extract_topics_from_docs(docs, max_topics=3):
-    """Extract key topics from documents for better suggestions"""
+    """Extract key topics from documents, but only if enough relevant docs exist."""
     try:
+        # Only extract if we have at least 2 docs (some relevance)
+        if len(docs) < 2:
+            return []
+        
         # Common Wasla-related keywords to look for
         topic_keywords = [
             "services", "solutions", "products", "digital", "platform",
@@ -225,7 +264,7 @@ def extract_topics_from_docs(docs, max_topics=3):
         # Return unique topics (remove duplicates)
         return list(set(found_topics))[:max_topics]
     except:
-        return ["services", "solutions", "digital transformation"]
+        return []
 
 # ===============================
 # Conversation Tracker
@@ -544,11 +583,18 @@ def save_feedback(question, response, feedback):
         pass
 
 # ===============================
-# Process Question (ENHANCED with Conversation Tracking)
+# Process Question (ENHANCED with Conversation Tracking and Greeting Detection)
 # ===============================
 def process_question(prompt, vectorstore, llm):
     """Process a single question with enhanced context handling and conversation tracking"""
     try:
+        # Check if this is a greeting early in conversation
+        conv_context = st.session_state.conversation_tracker.get_context()
+        if is_greeting(prompt) and conv_context["msg_count"] <= 2:
+            # Increment message count but don't retrieve or track topics
+            st.session_state.conversation_tracker.increment_count()
+            return get_greeting_response(), []
+        
         # Create retriever with MMR for better diversity
         retriever = vectorstore.as_retriever(
             search_type="mmr",
@@ -558,11 +604,12 @@ def process_question(prompt, vectorstore, llm):
         # Get relevant documents
         docs = retriever.get_relevant_documents(prompt)
         
-        # Extract topics for better suggestions (if needed)
+        # Extract topics for better suggestions (only if enough relevant docs)
         topics = extract_topics_from_docs(docs)
         
         # Update conversation tracker
         st.session_state.conversation_tracker.increment_count()
+        # Only add topics if we have some (avoid adding from irrelevant queries)
         for topic in topics[:2]:
             st.session_state.conversation_tracker.add_topic(topic)
         
@@ -647,7 +694,7 @@ Need help with:
     return random.choice(welcome_options)
 
 # ===============================
-# Main App (ENHANCED with Feedback)
+# Main App (ENHANCED with Feedback and Conditional Sources)
 # ===============================
 def main():
     st.set_page_config(
@@ -679,7 +726,7 @@ def main():
             "role": "assistant", 
             "content": get_welcome_message(),
             "sources": [],
-            "feedback": None  # Initialize feedback field
+            "feedback": None
         })
     
     # Sidebar
@@ -809,6 +856,7 @@ def main():
     for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            # Only show sources if they exist and are non-empty
             if "sources" in message and message["sources"]:
                 with st.expander("📚 View Sources"):
                     for j, source in enumerate(message["sources"], 1):
@@ -904,7 +952,7 @@ def main():
                     # Show response
                     st.markdown(response)
                     
-                    # Show sources
+                    # Show sources only if they exist
                     if sources:
                         with st.expander("📚 View Sources"):
                             for j, doc in enumerate(sources, 1):
