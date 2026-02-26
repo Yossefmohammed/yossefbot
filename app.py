@@ -12,6 +12,7 @@ from pathlib import Path
 import time
 import datetime
 import re
+import random
 
 # Import your constants
 try:
@@ -21,28 +22,110 @@ except ImportError:
         persist_directory = "db"
 
 # ===============================
+# Response Variation Helpers
+# ===============================
+class ResponseVariations:
+    """Generate varied response openings and patterns"""
+    
+    GREETINGS = [
+        "👋 Hi there!",
+        "Hello! 👋", 
+        "Great to connect!",
+        "Thanks for your question!",
+        "I'd be happy to help!",
+        "Sure thing!",
+        "Happy to assist with that.",
+        "Let me look into that for you.",
+        "Good question!",
+        "I can help with that."
+    ]
+    
+    TRANSITIONS = [
+        "Based on what I'm seeing,",
+        "According to our documentation,",
+        "From what I understand,",
+        "Here's what I know:",
+        "Let me share what I found:",
+        "Looking at our knowledge base,",
+        "Here's the information I have:",
+        "Great question! Here's what I can tell you:"
+    ]
+    
+    FOLLOW_UPS = [
+        "\n\nIs there anything specific about this you'd like to explore further?",
+        "\n\nWould you like me to elaborate on any particular aspect?",
+        "\n\nFeel free to ask if you want more details about any of these points.",
+        "\n\nWhat other questions can I answer for you?",
+        "\n\nHappy to dive deeper into any area that interests you.",
+        "\n\nIs there something else about Wasla Solutions you'd like to know?"
+    ]
+    
+    UNKNOWN_RESPONSES = [
+        "I don't have specific information about that in my knowledge base. However, I can tell you about {topics}. Which would be most helpful?",
+        "That's not something I have documented. But I do know about {topics}. Would you like to learn about any of these?",
+        "Great question! While I don't have details about that specifically, I can share information about {topics}. What interests you most?",
+        "I'm not finding that in my documents. However, my knowledge base includes information about {topics}. Would any of those be helpful?",
+        "That's outside what I have in my knowledge base. I can help with {topics} though - just let me know what you'd like to explore."
+    ]
+    
+    @classmethod
+    def get_greeting(cls):
+        return random.choice(cls.GREETINGS)
+    
+    @classmethod
+    def get_transition(cls):
+        return random.choice(cls.TRANSITIONS)
+    
+    @classmethod
+    def get_follow_up(cls):
+        return random.choice(cls.FOLLOW_UPS)
+    
+    @classmethod
+    def format_unknown_response(cls, topics):
+        topics_str = ", ".join(topics[:3])
+        return random.choice(cls.UNKNOWN_RESPONSES).format(topics=topics_str)
+
+# ===============================
 # Enhanced Prompt Template
 # ===============================
 WASLA_PROMPT = PromptTemplate(
-    template="""You are a knowledgeable assistant for Wasla Solutions. Your role is to provide helpful, accurate, and engaging responses based strictly on the provided context.
+    template="""You are Wasla AI, a knowledgeable and friendly assistant for Wasla Solutions.
 
-CONTEXT FROM DOCUMENTS:
+**CONVERSATION CONTEXT:**
+This is message #{msg_count} in our conversation. Previous topics: {previous_topics}
+
+**DOCUMENT CONTEXT:**
 {context}
 
-USER QUESTION: {question}
+**USER QUESTION:**
+{question}
 
-INSTRUCTIONS:
-1. Answer based ONLY on the context provided above
-2. If the context doesn't contain the answer, say: "I don't have information about that in my knowledge base. Could you ask something else about Wasla Solutions?"
-3. Be conversational and professional, like a helpful colleague
-4. Keep responses concise but informative
-5. If relevant, mention specific details from the context
-6. Use bullet points for lists when helpful
-7. End by offering additional help
-8. Vary your greetings - don't start every response the same way
+**RESPONSE GUIDELINES:**
 
-YOUR RESPONSE:""",
-    input_variables=["context", "question"]
+1. **Vary Your Openings** - Don't repeat the same phrases:
+   - If this is early in conversation: Use a warm greeting
+   - If continuing discussion: Reference the previous topic naturally
+   - Avoid: "I'd be happy to help with that" (use alternatives)
+
+2. **When You Have Information:**
+   - Present key points clearly
+   - Use bullet points for lists
+   - Be specific - quote or reference document details
+   - End with a natural follow-up question
+
+3. **When Information is Missing:**
+   - Acknowledge politely
+   - Suggest 2-3 related topics you CAN help with
+   - Make it conversational, not robotic
+
+4. **Tone & Style:**
+   - Professional but warm (like a helpful colleague)
+   - Enthusiastic about Wasla's capabilities
+   - Natural conversation flow
+   - No repetitive patterns
+
+**YOUR RESPONSE:**""",
+    input_variables=["context", "question", "msg_count", "previous_topics"]
 )
 
 # ===============================
@@ -134,6 +217,76 @@ def extract_topics_from_docs(docs, max_topics=3):
         return ["services", "solutions", "digital transformation"]
 
 # ===============================
+# Conversation Tracker
+# ===============================
+class ConversationTracker:
+    """Track conversation context and topics"""
+    
+    def __init__(self):
+        self.topics_discussed = []
+        self.message_count = 0
+        self.last_response_pattern = None
+    
+    def add_topic(self, topic):
+        if topic and topic not in self.topics_discussed:
+            self.topics_discussed.append(topic)
+            # Keep only last 5 topics
+            if len(self.topics_discussed) > 5:
+                self.topics_discussed = self.topics_discussed[-5:]
+    
+    def increment_count(self):
+        self.message_count += 1
+    
+    def get_context(self):
+        return {
+            "msg_count": self.message_count,
+            "previous_topics": ", ".join(self.topics_discussed) if self.topics_discussed else "none yet"
+        }
+
+# ===============================
+# System Prompt for LLM
+# ===============================
+def get_system_prompt():
+    """Return the system prompt with varied response examples"""
+    return """You are Wasla AI, a knowledgeable and friendly assistant for Wasla Solutions. 
+
+**Core Personality:**
+- Professional, warm, and conversational
+- Vary your responses - don't repeat the same patterns
+- Be enthusiastic but not overbearing
+- Precise and accurate, never inventing information
+
+**Examples of GOOD responses (use these patterns, not exact words):**
+
+✅ GOOD OPENINGS (pick different ones):
+- "Thanks for asking about [topic]. Here's what I know..."
+- "Great question! Looking at our documentation..."
+- "Let me share what I found about [topic]..."
+- "Happy to help with that. Based on our knowledge base..."
+- "I'd be glad to explain. According to our materials..."
+
+✅ GOOD FOLLOW-UPS:
+- "Would you like to know more about [related aspect]?"
+- "Is there a specific area of [topic] you're most interested in?"
+- "I can also tell you about [related topic 1] or [related topic 2] if helpful."
+- "What other questions do you have about Wasla Solutions?"
+- "Feel free to ask if you want me to elaborate on any point."
+
+✅ GOOD UNKNOWN RESPONSES:
+- "I don't have information about that specifically. However, I can tell you about [topic 1], [topic 2], or [topic 3]. Which interests you?"
+- "That's not in my knowledge base, but I do know about [topic 1] and [topic 2]. Would either of those be helpful?"
+- "Great question! While I can't answer that directly, I can share information about [topic 1], [topic 2], or [topic 3]. What would you like to learn about?"
+
+❌ BAD PATTERNS TO AVOID:
+- Starting every response with "I'd be happy to help with that"
+- Using "Let's dive into" repeatedly
+- Copy-pasting the same list of services in every response
+- Ending every message the exact same way
+
+**Remember:** The goal is natural, varied conversation that feels helpful, not scripted.
+"""
+
+# ===============================
 # Load LLM using Groq (ENHANCED)
 # ===============================
 @st.cache_resource(ttl=3600)
@@ -174,39 +327,10 @@ def load_llm():
                     completion = self.client.chat.completions.create(
                         model=self.model,
                         messages=[
-                            {"role": "system", "content": """You are Wasla AI, a knowledgeable and friendly assistant for Wasla Solutions. 
-
-**Core Personality:**
-- Professional, warm, and conversational
-- Adapt your greeting style - don't repeat the same opening every time
-- Be enthusiastic about helping users understand Wasla Solutions
-- Precise and accurate, never inventing information
-
-**Response Guidelines:**
-1. **Vary your openings** - Use different greetings:
-   - "I'd be happy to help with that!"
-   - "Great question! Let me share what I know."
-   - "Based on our documentation..."
-   - (Only use "Great to have you here!" occasionally, not every time)
-
-2. **When you have information:**
-   - Present it clearly with bullet points when helpful
-   - Reference specific details from context
-   - End by offering additional help
-
-3. **When information is missing:**
-   - Acknowledge politely
-   - Suggest related topics from your knowledge base
-   - Keep it helpful, not repetitive
-
-**Example when info exists:**
-"Based on our documentation, Wasla Solutions specializes in [specific details]. This includes [list relevant services]. Would you like me to elaborate on any of these areas?"
-
-**Example when info missing:**
-"I don't have specific information about that in my knowledge base. However, I can tell you about [related topic 1], [related topic 2], or [related topic 3]. Which would be most helpful?"""},
+                            {"role": "system", "content": get_system_prompt()},
                             {"role": "user", "content": prompt}
                         ],
-                        temperature=0.6,
+                        temperature=0.7,  # Slightly higher for more variety
                         max_tokens=600,
                         top_p=0.9
                     )
@@ -388,10 +512,10 @@ def save_to_csv(question, answer):
         pass
 
 # ===============================
-# Process Question (ENHANCED with Topic Extraction)
+# Process Question (ENHANCED with Conversation Tracking)
 # ===============================
 def process_question(prompt, vectorstore, llm):
-    """Process a single question with enhanced context handling and topic extraction"""
+    """Process a single question with enhanced context handling and conversation tracking"""
     try:
         # Create retriever with MMR for better diversity
         retriever = vectorstore.as_retriever(
@@ -405,6 +529,11 @@ def process_question(prompt, vectorstore, llm):
         # Extract topics for better suggestions (if needed)
         topics = extract_topics_from_docs(docs)
         
+        # Update conversation tracker
+        st.session_state.conversation_tracker.increment_count()
+        for topic in topics[:2]:
+            st.session_state.conversation_tracker.add_topic(topic)
+        
         # Build context with source indication
         context_parts = []
         for i, doc in enumerate(docs, 1):
@@ -412,16 +541,34 @@ def process_question(prompt, vectorstore, llm):
         
         context = "\n\n".join(context_parts)
         
-        # Add topic suggestions to prompt if this might be an unknown query
-        enhanced_prompt = prompt
-        if "?" in prompt and len(docs) < 2:  # If few relevant docs found
-            topic_str = ", ".join(topics[:3])
-            enhanced_prompt = f"""{prompt}
-
-(Note: If you don't have specific information about this, please suggest these relevant topics that I can help with: {topic_str})"""
+        # Get conversation context
+        conv_context = st.session_state.conversation_tracker.get_context()
+        
+        # Handle different scenarios
+        if len(docs) < 2:  # Few relevant docs found
+            # Use unknown response pattern
+            if conv_context["msg_count"] > 1:  # Not first message
+                # Check if it's a follow-up on previous topic
+                if any(topic in prompt.lower() for topic in st.session_state.conversation_tracker.topics_discussed):
+                    # It's continuing a previous topic but we lack info
+                    follow_up_prompt = f"""The user is asking about {prompt} which relates to previous discussion about {conv_context['previous_topics']}. 
+However, I don't have specific information about this in my documents. 
+Please acknowledge politely and suggest exploring related aspects we DO have information about from: {', '.join(topics[:3]) if topics else 'services, solutions, or digital transformation'}"""
+                else:
+                    # New topic with no info
+                    follow_up_prompt = prompt
+            else:
+                follow_up_prompt = prompt
+        else:
+            follow_up_prompt = prompt
         
         # Format prompt with context
-        formatted_prompt = WASLA_PROMPT.format(context=context, question=enhanced_prompt)
+        formatted_prompt = WASLA_PROMPT.format(
+            context=context, 
+            question=follow_up_prompt,
+            msg_count=conv_context["msg_count"],
+            previous_topics=conv_context["previous_topics"]
+        )
         
         # Get response from LLM
         response = llm.invoke(formatted_prompt)
@@ -430,6 +577,42 @@ def process_question(prompt, vectorstore, llm):
         
     except Exception as e:
         raise Exception(f"Error processing question: {str(e)}")
+
+# ===============================
+# Welcome Message Variations
+# ===============================
+def get_welcome_message():
+    """Return a varied welcome message"""
+    welcome_options = [
+        """👋 **Hi there! I'm Wasla AI, your guide to all things Wasla Solutions.**
+
+I can help you explore:
+- 📋 Our **services and solutions**
+- 🔍 **Details** from our knowledge base  
+- 💡 **Answers** to your specific questions
+
+**Quick note:** I only share information from our documents, and I'll always be honest if I don't know something. Ready when you are! 🚀""",
+
+        """**Hello! I'm Wasla AI** - think of me as your personal assistant for exploring Wasla Solutions.
+
+Here's what I can do:
+- 📋 Share **information** about our services
+- 🔍 Help you **navigate** our knowledge base
+- 💡 Answer your **specific questions**
+
+**The important stuff:** I stick to what's in our documents, and I'll always show you my sources. What would you like to know?""",
+
+        """**Welcome! I'm Wasla AI**, here to help you discover more about Wasla Solutions.
+
+Need help with:
+- 📋 Understanding our **offerings**
+- 🔍 Finding **specific information** from documents
+- 💡 Getting **answers** to your questions
+
+**Just so you know:** I only provide information from our knowledge base, and I'm always transparent about my sources. Ask me anything! 🤖"""
+    ]
+    
+    return random.choice(welcome_options)
 
 # ===============================
 # Main App (ENHANCED)
@@ -454,24 +637,15 @@ def main():
     if "vectorstore" not in st.session_state:
         st.session_state.vectorstore = None
     
+    if "conversation_tracker" not in st.session_state:
+        st.session_state.conversation_tracker = ConversationTracker()
+    
     # Add welcome message if not shown
     if "welcome_shown" not in st.session_state:
         st.session_state.welcome_shown = True
         st.session_state.messages.append({
             "role": "assistant", 
-            "content": """👋 **Hello! I'm Wasla AI, your intelligent assistant for all things Wasla Solutions.**
-
-I'm here to help you with:
-- 📋 **Information** about Wasla Solutions services and offerings
-- 🔍 **Details** from your documents and knowledge base
-- 💡 **Answers** to your specific questions
-
-**How I work:**
-- I only provide information found in your documents
-- I'll always show you my sources
-- If I don't know something, I'll be honest about it
-
-Feel free to ask me anything about the documents in my knowledge base. I'm ready to help! 🚀""",
+            "content": get_welcome_message(),
             "sources": []
         })
     
@@ -570,6 +744,8 @@ Feel free to ask me anything about the documents in my knowledge base. I'm ready
                 # Keep only the welcome message
                 welcome_msg = st.session_state.messages[0] if st.session_state.messages and "welcome_shown" in st.session_state else None
                 st.session_state.messages = [welcome_msg] if welcome_msg else []
+                # Reset conversation tracker
+                st.session_state.conversation_tracker = ConversationTracker()
                 st.rerun()
         
         # System status
