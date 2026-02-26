@@ -186,6 +186,17 @@ def set_dark_theme():
             border-color: #2563EB !important;
         }
         footer {visibility: hidden;}
+        
+        /* Feedback buttons styling */
+        div[data-testid="column"] button {
+            background-color: #2D3748 !important;
+            color: #E5E7EB !important;
+            border: 1px solid #4A5568 !important;
+            margin: 2px !important;
+        }
+        div[data-testid="column"] button:hover {
+            background-color: #4A5568 !important;
+        }
         </style>
         """,
         unsafe_allow_html=True
@@ -244,7 +255,7 @@ class ConversationTracker:
         }
 
 # ===============================
-# System Prompt for LLM
+# System Prompt for LLM (Enhanced with more variety examples)
 # ===============================
 def get_system_prompt():
     """Return the system prompt with varied response examples"""
@@ -256,38 +267,40 @@ def get_system_prompt():
 - Be enthusiastic but not overbearing
 - Precise and accurate, never inventing information
 
-**Examples of GOOD responses (use these patterns, not exact words):**
-
-✅ GOOD OPENINGS (pick different ones):
+**Examples of GOOD openings (use these patterns, not exact words):**
 - "Thanks for asking about [topic]. Here's what I know..."
 - "Great question! Looking at our documentation..."
 - "Let me share what I found about [topic]..."
 - "Happy to help with that. Based on our knowledge base..."
 - "I'd be glad to explain. According to our materials..."
+- "That's an excellent question. Let me see what I have on [topic]..."
+- "You're asking about [topic] - I can definitely help with that."
+- "Here's what I understand from our documents about [topic]..."
 
-✅ GOOD FOLLOW-UPS:
+**Examples of GOOD follow-ups:**
 - "Would you like to know more about [related aspect]?"
 - "Is there a specific area of [topic] you're most interested in?"
 - "I can also tell you about [related topic 1] or [related topic 2] if helpful."
 - "What other questions do you have about Wasla Solutions?"
 - "Feel free to ask if you want me to elaborate on any point."
+- "Does that answer your question, or would you like more details?"
 
-✅ GOOD UNKNOWN RESPONSES:
+**Examples of GOOD unknown responses:**
 - "I don't have information about that specifically. However, I can tell you about [topic 1], [topic 2], or [topic 3]. Which interests you?"
 - "That's not in my knowledge base, but I do know about [topic 1] and [topic 2]. Would either of those be helpful?"
 - "Great question! While I can't answer that directly, I can share information about [topic 1], [topic 2], or [topic 3]. What would you like to learn about?"
 
-❌ BAD PATTERNS TO AVOID:
+**BAD patterns to AVOID at all costs:**
 - Starting every response with "I'd be happy to help with that"
 - Using "Let's dive into" repeatedly
 - Copy-pasting the same list of services in every response
 - Ending every message the exact same way
 
-**Remember:** The goal is natural, varied conversation that feels helpful, not scripted.
+**Remember:** The goal is natural, varied conversation that feels helpful, not scripted. Always try to use different opening phrases throughout the conversation.
 """
 
 # ===============================
-# Load LLM using Groq (ENHANCED)
+# Load LLM using Groq (ENHANCED with higher temperature)
 # ===============================
 @st.cache_resource(ttl=3600)
 def load_llm():
@@ -330,7 +343,7 @@ def load_llm():
                             {"role": "system", "content": get_system_prompt()},
                             {"role": "user", "content": prompt}
                         ],
-                        temperature=0.7,  # Slightly higher for more variety
+                        temperature=0.8,  # Increased for more variety
                         max_tokens=600,
                         top_p=0.9
                     )
@@ -493,7 +506,7 @@ def init_vectorstore():
         return None
 
 # ===============================
-# Save to CSV
+# Save to CSV (Chat History)
 # ===============================
 def save_to_csv(question, answer):
     """Save Q&A to CSV file"""
@@ -507,6 +520,25 @@ def save_to_csv(question, answer):
                 writer.writerow(["Question", "Answer", "Time", "Date"])
             writer.writerow([question, answer, 
                            datetime.datetime.now().strftime("%H:%M:%S"), 
+                           datetime.datetime.now().strftime("%Y-%m-%d")])
+    except Exception as e:
+        pass
+
+# ===============================
+# Save Feedback to CSV
+# ===============================
+def save_feedback(question, response, feedback):
+    """Save user feedback to CSV file"""
+    csv_file = "feedback.csv"
+    file_exists = os.path.isfile(csv_file)
+    
+    try:
+        with open(csv_file, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["Question", "Response", "Feedback", "Time", "Date"])
+            writer.writerow([question, response, feedback,
+                           datetime.datetime.now().strftime("%H:%M:%S"),
                            datetime.datetime.now().strftime("%Y-%m-%d")])
     except Exception as e:
         pass
@@ -615,7 +647,7 @@ Need help with:
     return random.choice(welcome_options)
 
 # ===============================
-# Main App (ENHANCED)
+# Main App (ENHANCED with Feedback)
 # ===============================
 def main():
     st.set_page_config(
@@ -646,7 +678,8 @@ def main():
         st.session_state.messages.append({
             "role": "assistant", 
             "content": get_welcome_message(),
-            "sources": []
+            "sources": [],
+            "feedback": None  # Initialize feedback field
         })
     
     # Sidebar
@@ -671,7 +704,8 @@ def main():
                         st.session_state.messages.append({
                             "role": "assistant",
                             "content": "✅ **I'm ready to help!** You can now ask me questions about your documents. Feel free to ask about our services, solutions, or any specific information you need.",
-                            "sources": []
+                            "sources": [],
+                            "feedback": None
                         })
                     else:
                         st.error("❌ Failed to initialize AI")
@@ -761,21 +795,49 @@ def main():
             if os.path.exists("chat_history.csv"):
                 with open("chat_history.csv", "r") as f:
                     st.download_button("📥 Export Chat", f, "chat_history.csv", use_container_width=True)
+            
+            # Export feedback
+            if os.path.exists("feedback.csv"):
+                with open("feedback.csv", "r") as f:
+                    st.download_button("📥 Export Feedback", f, "feedback.csv", use_container_width=True)
     
     # Main chat interface
     st.title("💬 Wasla AI Assistant")
     st.markdown("Ask me anything about your documents")
     
     # Display chat messages
-    for message in st.session_state.messages:
+    for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if "sources" in message and message["sources"]:
                 with st.expander("📚 View Sources"):
-                    for i, source in enumerate(message["sources"], 1):
+                    for j, source in enumerate(message["sources"], 1):
                         preview = source[:200] + "..." if len(source) > 200 else source
-                        st.write(f"**Source {i}:**")
+                        st.write(f"**Source {j}:**")
                         st.write(preview)
+            
+            # Add feedback buttons only for the last assistant message and if not already rated
+            if (message["role"] == "assistant" and 
+                i == len(st.session_state.messages) - 1 and 
+                message.get("feedback") is None):
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("👍 Helpful", key=f"fb_pos_{i}"):
+                        # Update message feedback
+                        st.session_state.messages[i]["feedback"] = "positive"
+                        # Get the corresponding user question (previous message)
+                        if i > 0 and st.session_state.messages[i-1]["role"] == "user":
+                            question = st.session_state.messages[i-1]["content"]
+                            save_feedback(question, message["content"], "positive")
+                        st.rerun()
+                with col2:
+                    if st.button("👎 Not helpful", key=f"fb_neg_{i}"):
+                        st.session_state.messages[i]["feedback"] = "negative"
+                        if i > 0 and st.session_state.messages[i-1]["role"] == "user":
+                            question = st.session_state.messages[i-1]["content"]
+                            save_feedback(question, message["content"], "negative")
+                        st.rerun()
     
     # Chat input
     if prompt := st.chat_input("Ask a question about your documents..."):
@@ -792,7 +854,12 @@ def main():
                     if not db_exists:
                         response = "⚠️ **Knowledge base not found.** Please create one first using the button in the sidebar."
                         st.markdown(response)
-                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
+                        st.session_state.messages.append({
+                            "role": "assistant", 
+                            "content": response, 
+                            "sources": [],
+                            "feedback": None
+                        })
                         return
                     
                     if st.session_state.vectorstore is None:
@@ -801,7 +868,12 @@ def main():
                     if st.session_state.vectorstore is None:
                         response = "⚠️ **Could not load knowledge base.** Please try recreating it using the button in the sidebar."
                         st.markdown(response)
-                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
+                        st.session_state.messages.append({
+                            "role": "assistant", 
+                            "content": response, 
+                            "sources": [],
+                            "feedback": None
+                        })
                         return
                     
                     if st.session_state.llm is None:
@@ -811,7 +883,12 @@ def main():
                     if st.session_state.llm is None:
                         response = "⚠️ **Could not initialize AI.** Please check your Groq API key in the sidebar and click 'Initialize Wasla AI'."
                         st.markdown(response)
-                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
+                        st.session_state.messages.append({
+                            "role": "assistant", 
+                            "content": response, 
+                            "sources": [],
+                            "feedback": None
+                        })
                         return
                     
                     # Process question with enhanced features
@@ -830,22 +907,28 @@ def main():
                     # Show sources
                     if sources:
                         with st.expander("📚 View Sources"):
-                            for i, doc in enumerate(sources, 1):
+                            for j, doc in enumerate(sources, 1):
                                 preview = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
-                                st.write(f"**Source {i}:**")
+                                st.write(f"**Source {j}:**")
                                 st.write(preview)
                     
-                    # Add to session state
+                    # Add to session state with feedback field
                     st.session_state.messages.append({
                         "role": "assistant", 
                         "content": response,
-                        "sources": [doc.page_content for doc in sources] if sources else []
+                        "sources": [doc.page_content for doc in sources] if sources else [],
+                        "feedback": None
                     })
                     
                 except Exception as e:
                     error_msg = f"❌ **Error:** {str(e)}"
                     st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg, "sources": []})
+                    st.session_state.messages.append({
+                        "role": "assistant", 
+                        "content": error_msg, 
+                        "sources": [],
+                        "feedback": None
+                    })
 
 if __name__ == "__main__":
     main()
