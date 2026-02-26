@@ -236,17 +236,28 @@ def process_question(prompt, vectorstore, llm):
 # Main App
 # ===============================
 def main():
-    st.set_page_config(page_title="Wasla Solutions Chatbot", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
+    st.set_page_config(
+        page_title="Wasla Solutions Chatbot",
+        page_icon="🤖",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
     set_dark_theme()
 
-    if "messages" not in st.session_state: st.session_state.messages=[]
-    if "llm" not in st.session_state: st.session_state.llm=None
-    if "vectorstore" not in st.session_state: st.session_state.vectorstore=None
+    # -----------------------------
+    # Session State Init
+    # -----------------------------
+    if "messages" not in st.session_state: st.session_state.messages = []
+    if "llm" not in st.session_state: st.session_state.llm = None
+    if "vectorstore" not in st.session_state: st.session_state.vectorstore = None
 
     # Welcome message
     if "welcome_shown" not in st.session_state:
-        st.session_state.welcome_shown=True
-        st.session_state.messages.append({"role":"assistant","content":"👋 **Hello! I'm Wasla AI, your intelligent assistant.**\nI can answer questions from your documents or knowledge base."})
+        st.session_state.welcome_shown = True
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": "👋 **Hello! I'm Wasla AI, your intelligent assistant.**\nI can answer questions from your documents or knowledge base."
+        })
 
     # -----------------------------
     # Sidebar
@@ -254,11 +265,13 @@ def main():
     with st.sidebar:
         st.title("🤖 Wasla Solutions")
         st.markdown("---")
+
         st.subheader("🔑 API Configuration")
         if "GROQ_API_KEY" in st.secrets:
             st.success("✅ Groq API key configured")
             if st.button("🔄 Initialize Wasla AI"):
-                st.session_state.llm = load_llm()
+                with st.spinner("Initializing AI..."):
+                    st.session_state.llm = load_llm()
                 if st.session_state.llm: st.success("✅ Wasla AI ready!")
                 else: st.error("❌ Failed to initialize AI")
         else:
@@ -269,57 +282,101 @@ def main():
         db_path = Path("db"); db_exists = (db_path / "chroma.sqlite3").exists()
         if db_exists:
             if st.session_state.vectorstore is None:
-                st.session_state.vectorstore = init_vectorstore()
-            else: st.success("✅ Knowledge base ready")
+                with st.spinner("Loading knowledge base..."):
+                    st.session_state.vectorstore = init_vectorstore()
+            else:
+                st.success("✅ Knowledge base ready")
         else:
             docs_path = Path("docs"); pdf_files = list(docs_path.glob("**/*.pdf")) if docs_path.exists() else []
             if pdf_files:
                 if st.button("🚀 Create Knowledge Base"):
-                    create_database_from_pdfs()
+                    with st.spinner("Creating knowledge base... This may take a few minutes."):
+                        create_database_from_pdfs()
+                        st.success("✅ Knowledge base created!")
+                        st.experimental_rerun()
             else:
                 st.info("Please add PDFs to the 'docs' folder")
 
         st.markdown("---")
         st.subheader("🎮 Controls")
-        col1,col2=st.columns(2)
+        col1, col2 = st.columns(2)
         with col1:
             if st.button("🔄 Reset AI"):
-                st.cache_resource.clear(); st.session_state.llm=None; st.success("✅ AI reset"); st.rerun()
+                st.cache_resource.clear()
+                st.session_state.llm = None
+                st.success("✅ AI reset")
+                st.experimental_rerun()
         with col2:
             if st.button("🗑️ Clear Chat"):
-                st.session_state.messages=[st.session_state.messages[0]] if st.session_state.messages else []; st.rerun()
+                welcome_msg = st.session_state.messages[0] if st.session_state.messages else None
+                st.session_state.messages = [welcome_msg] if welcome_msg else []
+                st.experimental_rerun()
 
     # -----------------------------
-    # Main Chat
+    # Main Chat Area
     # -----------------------------
     st.title("💬 Wasla AI Assistant")
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            if "sources" in message and message["sources"]:
+                with st.expander("📚 Sources"):
+                    for i, src in enumerate(message["sources"], 1):
+                        preview = src[:200] + "..." if len(src) > 200 else src
+                        st.write(f"Source {i}: {preview}")
 
+    # -----------------------------
+    # User Input
+    # -----------------------------
     if prompt := st.chat_input("Ask a question about your documents..."):
-        st.session_state.messages.append({"role":"user","content":prompt})
+        # Display user message
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"): st.markdown(f"**Q:** {prompt}")
+
+        # Process assistant response
         with st.chat_message("assistant"):
             try:
-                if st.session_state.vectorstore is None:
-                    st.session_state.vectorstore = init_vectorstore()
-                if st.session_state.vectorstore is None:
-                    response = "⚠️ Knowledge base missing."
-                    st.markdown(response); st.session_state.messages.append({"role":"assistant","content":response,"sources":[]}); return
-                if st.session_state.llm is None:
-                    st.session_state.llm = load_llm()
-                answer, docs = process_question(prompt, st.session_state.vectorstore, st.session_state.llm)
-                # Combine question + answer for display
-                full_answer = f"**Q:** {prompt}\n\n**A:** {answer}"
-                st.markdown(full_answer)
-                st.session_state.messages.append({
-                    "role":"assistant",
-                    "content":full_answer,
-                    "sources":[doc.page_content[:500] for doc in docs]
-                })
-                save_to_csv(prompt, answer)
-            except Exception as e:
-                err_msg=f"❌ Error: {str(e)}"; st.markdown(err_msg); st.session_state.messages.append({"role":"assistant","content":err_msg,"sources":[]})
+                with st.spinner("Thinking..."):
+                    # Ensure vectorstore exists
+                    if st.session_state.vectorstore is None:
+                        st.session_state.vectorstore = init_vectorstore()
+                    if st.session_state.vectorstore is None:
+                        response = "⚠️ Knowledge base missing."
+                        st.markdown(response)
+                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
+                        return
 
-if __name__=="__main__":
+                    # Ensure LLM exists
+                    if st.session_state.llm is None:
+                        st.session_state.llm = load_llm()
+                    if st.session_state.llm is None:
+                        response = "❌ Failed to initialize AI. Check your Groq API key."
+                        st.markdown(response)
+                        st.session_state.messages.append({"role": "assistant", "content": response, "sources": []})
+                        return
+
+                    # Process question
+                    answer, docs = process_question(prompt, st.session_state.vectorstore, st.session_state.llm)
+
+                    # Display answer in expander
+                    st.markdown(f"**A:**")
+                    with st.expander("View Answer"):
+                        st.markdown(answer)
+
+                    # Save to session and CSV
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": f"**Q:** {prompt}\n\n**A:** {answer}",
+                        "sources": [doc.page_content[:500] for doc in docs]
+                    })
+                    save_to_csv(prompt, answer)
+
+            except Exception as e:
+                err_msg = "⚠️ Something went wrong. Please try again."
+                st.markdown(err_msg)
+                st.sidebar.error(str(e))
+                st.session_state.messages.append({"role": "assistant", "content": err_msg, "sources": []})
+
+
+if __name__ == "__main__":
     main()
