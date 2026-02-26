@@ -34,14 +34,13 @@ CONTEXT FROM DOCUMENTS:
 USER QUESTION: {question}
 
 INSTRUCTIONS:
-1. Start your response by **restating the user's question**.
+1. Start your response by restating the user's question.
 2. Answer based ONLY on the context provided above.
 3. If the context doesn't contain the answer, say: "I don't have information about that in my knowledge base. Could you ask something else about Wasla Solutions?"
-4. Be conversational and professional, like a helpful colleague.
+4. Be conversational and professional.
 5. Keep responses concise but informative.
-6. If relevant, mention specific details from the context.
-7. Use bullet points for lists when helpful.
-8. End by offering additional help.
+6. Use bullet points for lists when helpful.
+7. End by offering additional help.
 
 YOUR RESPONSE:
 """,
@@ -310,8 +309,14 @@ def main():
                 if st.session_state.llm is None:
                     st.session_state.llm = load_llm()
                 answer, docs = process_question(prompt, st.session_state.vectorstore, st.session_state.llm)
-                st.markdown(answer)
-                st.session_state.messages.append({"role":"assistant","content":answer,"sources":[doc.page_content[:500] for doc in docs]})
+                # Combine question + answer for display
+                full_answer = f"**Q:** {prompt}\n\n**A:** {answer}"
+                st.markdown(full_answer)
+                st.session_state.messages.append({
+                    "role":"assistant",
+                    "content":full_answer,
+                    "sources":[doc.page_content[:500] for doc in docs]
+                })
                 save_to_csv(prompt, answer)
             except Exception as e:
                 err_msg=f"❌ Error: {str(e)}"; st.markdown(err_msg); st.session_state.messages.append({"role":"assistant","content":err_msg,"sources":[]})
