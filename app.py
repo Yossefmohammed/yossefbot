@@ -257,8 +257,7 @@ If it continues: "Chat ended." — nothing else.
 ================================================================
 CONTACT & NEXT STEPS
 ================================================================
-If the user asks to contact the team, reach out, speak to someone, or book a meeting, provide contact info immediately. Do not ask a question first.
-Only suggest contact when the user shows GENUINE interest otherwise (after 3+ exchanges).
+Only suggest contact when the user shows GENUINE interest (after 3+ exchanges).
 NEVER push this early.
 
 When appropriate:
@@ -904,26 +903,6 @@ def save_feedback(question, response, feedback):
 # ===============================
 def process_question(prompt, vectorstore, llm):
     try:
-        prompt_lower = prompt.lower().strip()
-        contact_requests = [
-            "contact the team", "contact team", "contact your team", "contact you", "contact us",
-            "reach out", "speak to someone", "speak with someone",
-            "talk to someone", "talk with someone", "schedule a call",
-            "book a call", "book a meeting", "schedule a meeting"
-        ]
-        if any(phrase in prompt_lower for phrase in contact_requests) or (
-            "contact" in prompt_lower and any(word in prompt_lower for word in ["team", "you", "someone", "support"])
-        ):
-            return (
-                "For direct contact, email info@waslasolutions.com or book a meeting via Calendly on the Wasla website.",
-                []
-            )
-
-        explain_more_requests = [
-            "explain more", "tell me more", "more detail", "more details", "elaborate more"
-        ]
-        is_explain_more = any(phrase in prompt_lower for phrase in explain_more_requests)
-
         # FIX 1: Handle greetings at ANY point in conversation (removed <= 2 limit)
         if is_greeting(prompt):
             st.session_state.tracker.increment_count()
@@ -937,7 +916,7 @@ def process_question(prompt, vectorstore, llm):
         docs = retriever.get_relevant_documents(prompt)
 
         # FIX 3: Filter out empty or whitespace-only document chunks
-        docs = [doc for doc in docs if doc.page_content.strip() and len(doc.page_content.strip()) > 20]
+        docs = [doc for doc in docs if doc.page_content.strip()]
 
         # FIX 2: Relevance check — if no docs found, return clean fallback
         if len(docs) == 0:
@@ -965,16 +944,10 @@ def process_question(prompt, vectorstore, llm):
         history = build_history_string(st.session_state.messages, max_exchanges=4)
 
         # Format prompt
-        question_text = prompt
-        if is_explain_more:
-            question_text = (
-                f"{prompt}. Please provide 2-3 sentences of additional explanation first, then ask one follow-up question."
-            )
-
         formatted_prompt = BOT_PROMPT.format(
             history=history,
             context=context,
-            question=question_text
+            question=prompt
         )
 
         # Get response
@@ -1025,6 +998,7 @@ def main():
         st.session_state.welcome_shown = True
         st.session_state.messages.append({
             "role": "assistant",
+            "sender": CONFIG["bot_name"],
             "content": get_welcome_message(),
             "sources": [],
             "feedback": None
@@ -1048,6 +1022,7 @@ def main():
                 if st.session_state.llm:
                     st.session_state.messages.append({
                         "role": "assistant",
+                        "sender": CONFIG["bot_name"],
                         "content": "I'm ready. What are you working on or trying to build?",
                         "sources": [],
                         "feedback": None
@@ -1123,12 +1098,15 @@ def main():
                     st.download_button("Export Feedback", f, "feedback.csv", use_container_width=True)
 
     # ---- MAIN CHAT UI ----
-    st.title("WASLA")
+    st.title(CONFIG["bot_name"])
     st.markdown("*Your digital intelligence layer*")
 
     # Display messages
     for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
+            if message["role"] == "assistant":
+                sender = message.get("sender", CONFIG["bot_name"])
+                st.markdown(f"**{sender}**")
             st.markdown(message["content"])
 
             # Show sources if available — filter empty ones
@@ -1176,7 +1154,7 @@ def main():
                         )
                         st.markdown(response)
                         st.session_state.messages.append({
-                            "role": "assistant", "content": response,
+                            "role": "assistant", "sender": CONFIG["bot_name"], "content": response,
                             "sources": [], "feedback": None
                         })
                         return
@@ -1192,7 +1170,7 @@ def main():
                         )
                         st.markdown(response)
                         st.session_state.messages.append({
-                            "role": "assistant", "content": response,
+                            "role": "assistant", "sender": CONFIG["bot_name"], "content": response,
                             "sources": [], "feedback": None
                         })
                         return
@@ -1209,7 +1187,7 @@ def main():
                         )
                         st.markdown(response)
                         st.session_state.messages.append({
-                            "role": "assistant", "content": response,
+                            "role": "assistant", "sender": CONFIG["bot_name"], "content": response,
                             "sources": [], "feedback": None
                         })
                         return
@@ -1243,6 +1221,7 @@ def main():
                     # Store message — filter empty sources
                     st.session_state.messages.append({
                         "role": "assistant",
+                        "sender": CONFIG["bot_name"],
                         "content": response,
                         "sources": [doc.page_content for doc in sources if doc.page_content.strip()] if sources else [],
                         "feedback": None
@@ -1252,7 +1231,7 @@ def main():
                     error_msg = f"❌ **Error:** {str(e)}"
                     st.error(error_msg)
                     st.session_state.messages.append({
-                        "role": "assistant", "content": error_msg,
+                        "role": "assistant", "sender": CONFIG["bot_name"], "content": error_msg,
                         "sources": [], "feedback": None
                     })
 
