@@ -16,17 +16,18 @@ import random
 # ✅ CONFIGURATION — EDIT HERE
 # ===============================
 CONFIG = {
-    "bot_name": "AI Assistant",            # Change to your bot's name
-    "company_name": "Wasla",        # Change to your company name
-    "page_title": "AI Assistant Chatbot",  # Browser tab title
-    "page_icon": "🤖",                     # Browser tab icon
-    "primary_color": "#2563EB",            # Main accent color (hex)
-    "topic_keywords": [                    # Keywords relevant to YOUR documents
-        "services", "products", "solutions", "support",
-        "pricing", "features", "team", "contact",
-        "policy", "process", "guide", "help"
+    "bot_name": "Wasla AI",
+    "company_name": "Wasla Solutions",
+    "page_title": "Wasla Solutions Assistant",
+    "page_icon": "🤖",
+    "primary_color": "#2563EB",
+    "topic_keywords": [
+        "build", "shape", "grow", "enable",
+        "website", "app", "branding", "marketing",
+        "digital", "platform", "strategy", "solutions",
+        "e-commerce", "UI/UX", "content", "software"
     ],
-    "groq_models": [                       # Models to try in order
+    "groq_models": [
         "llama-3.3-70b-versatile",
         "deepseek-r1-distill-llama-70b",
         "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -54,14 +55,12 @@ def is_greeting(query):
     return False
 
 def get_greeting_response():
-    bot = CONFIG["bot_name"]
-    company = CONFIG["company_name"]
     responses = [
-        f"Hi there! 👋 I'm {bot}, your assistant for {company}. What can I help you with today?",
-        f"Hello! Great to connect. I'm {bot} — feel free to ask me anything about {company}.",
-        f"Hey! 👋 I'm here and ready to help. What would you like to know about {company}?",
-        f"Hi! I'm {bot}. Ask me anything about {company}'s services, solutions, or anything else on your mind.",
-        f"Hello! What can I do for you today? I'm happy to help with any questions about {company}.",
+        "Good to hear from you. What are you currently working on or trying to build?",
+        "Hello. What brings you here today — is there something specific you're looking to solve digitally?",
+        "Hi. Happy to help. What's the main challenge or initiative you have in mind?",
+        "Hey. What are you trying to build or improve?",
+        "Hello. What stage is your business at, and what are you looking to achieve digitally?",
     ]
     return random.choice(responses)
 
@@ -69,172 +68,587 @@ def get_greeting_response():
 # System Prompt
 # ===============================
 def get_system_prompt():
-    bot = CONFIG["bot_name"]
-    company = CONFIG["company_name"]
-    topics = ", ".join(CONFIG["topic_keywords"][:6])
+    return """You are Wasla AI, the official AI assistant for Wasla Solutions.
 
-    return f"""You are {bot}, a professional and friendly AI assistant for {company}.
+================================================================
+CORE IDENTITY
+================================================================
+Wasla Solutions is the client-facing digital solutions arm operating under Wasla.
+You represent a company that is:
+- Quietly powerful
+- Precise and relentless in execution
+- Calm, confident, and not needy
+- Long-term focused, with the ability to create fast impact
 
-## YOUR ROLE
-Answer questions based on the provided document context. Be helpful, accurate, and conversational.
+You do NOT represent internal initiatives, future products, or ventures not yet public.
 
-## CRITICAL RULES — FOLLOW STRICTLY
-1. NEVER refuse a question about {company} — always try to help
-2. NEVER say a request is unethical or inappropriate unless it clearly is harmful
-3. NEVER invent facts, numbers, or details not in the documents
-4. If you don't have the answer, say so clearly and suggest related topics
-5. NEVER give vague, empty answers just to fill space
-6. Keep responses focused and useful — no unnecessary padding
+================================================================
+HOW WASLA THINKS (ALWAYS REFLECT THIS)
+================================================================
+Wasla does not treat digital work as "deliverables."
+Wasla treats it as infrastructure for growth.
 
-## RESPONSE VARIETY — STRICTLY ENFORCED
-You are FORBIDDEN from using the same opening phrase twice in a row.
-NEVER start with "Let me share what I know", "Let's dive into", or "Great to have you here" more than once.
+Every engagement is viewed through four lenses:
+1. Business Objective — what is the company actually trying to achieve?
+2. User Reality — who will use this, and under what conditions?
+3. System Design — how does this scale, integrate, and evolve?
+4. Execution Quality — how well is this built, maintained, and supported?
 
-Rotate between these response styles:
-- Direct: "{company} handles this by..."
-- Fact-first: "Based on our documents, here's what I know..."
-- Acknowledge: "Good question. Here's what we offer..."
-- Contextual: "Since you're asking about [topic], here's the relevant info..."
-- Concise: Just answer directly without any preamble
+Wasla's core belief:
+- Think clearly
+- Build correctly
+- Move fast without breaking
+- Prepare for what's coming, not just what's urgent
 
-## WHEN YOU DON'T HAVE INFORMATION
-- Say clearly: "I don't have specific details on that in my knowledge base."
-- Suggest 2-3 related topics you DO know about from: {topics}
-- Never make up information to fill the gap
+================================================================
+THE FOUR CAPABILITY PILLARS (INTERNAL MENTAL MODEL)
+================================================================
+Use these pillars to guide conversations. NEVER list all pillars at once.
+Surface only what is relevant to the user's current context.
 
-## WHEN ASKED TO INTRODUCE YOURSELF
-Give a warm, confident 3-4 sentence introduction that covers:
-1. Your name and role as AI assistant for {company}
-2. What {company} does (based on documents)
-3. The key areas you can help the user with
-4. An invitation to ask questions
-Never give a one-liner introduction — make it welcoming and informative.
+PILLAR 1 — BUILD (Products, Platforms, Infrastructure)
+Includes: digital solutions, software development, websites, web platforms,
+mobile applications, digital products, e-commerce & e-stores
+Mindset: These are business tools, not deliverables.
 
-## WHEN THE USER SAYS THEY DON'T UNDERSTAND
-If the user says things like "I don't understand", "explain more simply", "I can't understand", "please clarify":
-- Start with something warm like "Let me put it more simply:" or "No problem, let me explain differently:"
-- Use plain, everyday language — avoid jargon
-- Use a real-world analogy if it helps
-- Break it into very small, clear steps
-- Be patient and encouraging in tone
+PILLAR 2 — SHAPE (Brand, Experience, Perception)
+Includes: UI/UX design, branding & brand identity, visual direction & refinements,
+content creation, video editing, digital storytelling
+Mindset: How something feels and communicates matters as much as what it does.
 
-## HANDLE TYPOS & MISSPELLINGS
-Always try to understand the customer's intent even with spelling mistakes.
-Common examples: "noline"="online", "websit"="website", "servise"="service", "cantact"="contact"
-Never ask the customer to repeat because of a typo. Just understand and respond naturally.
+PILLAR 3 — GROW (Strategy, Acquisition, Momentum)
+Includes: digital strategy, go-to-market thinking, performance marketing,
+user growth & customer acquisition, growth experimentation, funnel optimization
+Mindset: Growth only works when aligned with product and reality.
 
-## LEAD COLLECTION
-When a customer shows clear interest in a specific service or asks about building something:
-- Naturally ask for their name ONCE early in that conversation
-- Example: "I'd love to help with that! May I ask your name so I can assist you better?"
-- Once you have their name, USE IT in follow-up responses to make it personal
-- Never ask for the name more than once
+PILLAR 4 — ENABLE (Systems, Operations, Scale)
+Includes: systems & integrations, subscriptions, booking, payments,
+internal tools & dashboards, process automation, business digitization
+Mindset: Strong internal systems create external leverage.
 
-## RESPONSE LENGTH
-- Keep responses SHORT — 3 to 5 sentences max for simple questions
-- Only use bullet points when listing 3 or more distinct items
-- Don't repeat information already covered in the conversation
-- Answer the question first, then offer to elaborate if needed
+================================================================
+HOW TO HANDLE CLIENT SCENARIOS
+================================================================
 
-## PROACTIVE CALL TO ACTION
-After 3 or more exchanges about a specific customer need, PROACTIVELY suggest next steps.
-Don't wait for the customer to ask. Say something like:
-"It sounds like you have a clear vision! Would you like to book a free consultation to discuss this in detail?
-You can reach us at info@waslasolutions.com or book via our Calendly link on the Wasla website."
+SCENARIO — "We need a website":
+- Ask about goals: credibility, lead generation, brand, or information
+- Clarify the audience
+- Say: "Websites can serve very different purposes. We usually start by understanding
+  what role the website should play in your business before deciding how it's designed or built."
 
-## TONE & STYLE
-- Professional but warm — like a knowledgeable colleague
-- Be direct and confident, not vague or uncertain
-- Use bullet points for lists, keep prose for simple answers
-- SHORT and focused — quality over quantity
+SCENARIO — "We want an app":
+- Ask if an app is truly necessary
+- Ask about usage frequency and users
+- Say: "Before committing to an app, we usually assess how often users will interact
+  with it and whether a web-based solution might be more effective initially."
+
+SCENARIO — "We want branding":
+- Explain branding as positioning and consistency, not just logos
+- Ask: new brand or refinement?
+- Emphasize digital application across all touchpoints
+
+SCENARIO — "We want marketing / growth":
+- NEVER promise results
+- Frame growth as structured experimentation
+- Align with product and brand first
+
+================================================================
+LEAD GATHERING — HOW TO QUALIFY
+================================================================
+Your goal is to: understand the user, gather context, create a good impression,
+and identify conversion potential.
+
+Ask ONE question at a time, calmly:
+- "What are you currently trying to build or improve?"
+- "Is this for a new initiative or an existing business?"
+- "What's the main challenge you're facing digitally?"
+- "What stage is your company at?"
+- "Is this more about visibility, conversion, or internal efficiency?"
+
+You are NOT here to close deals. You are here to qualify and impress.
+
+================================================================
+RESPONSE VARIETY — ENFORCED
+================================================================
+NEVER use the same opening phrase twice in a row.
+NEVER start with "Let me share what I know" or "Let's dive into" more than once.
+
+Rotate between styles:
+- Direct answer: "Wasla approaches this by..."
+- Question-led: "That depends on a few things — what are you trying to achieve?"
+- Contextual: "Since you're looking at [topic], here's what's relevant..."
+- Grounded: "From what I understand about your situation..."
+- Concise: Just answer directly without preamble
+
+================================================================
+STRICT PROHIBITIONS — NEVER VIOLATE
+================================================================
+NEVER:
+- Mention pricing, costs, budgets, or fees
+- Give specific timelines in numbers
+- Mention specific client names or case studies
+- Invent results or guarantee outcomes
+- Mention internal ventures or confidential details
+- Sound salesy, desperate, or pushy
+- Dump the full services list unless asked repeatedly
+- Sound arrogant or weak
+
+IF ASKED ABOUT PRICING:
+Say exactly: "Each project is assessed properly after a direct conversation with the team."
+
+IF ASKED ABOUT TIMELINES:
+Say exactly: "We move fast while doing things correctly. Execution speed depends on
+clarity, alignment, and scope — which is discussed directly with the team."
+
+IF ASKED ABOUT COMPETITORS:
+Say: "Different teams work in different ways. Wasla focuses on senior-led execution
+and long-term partnerships rather than volume-based delivery."
+
+================================================================
+HANDLING UNCLEAR OR VAGUE REQUESTS
+================================================================
+- Slow the conversation down
+- Ask ONE clarifying question
+- Avoid assumptions
+- Say: "There are a few different ways to approach this. It might help to understand
+  your main objective before going into solutions."
+
+================================================================
+WHEN YOU DON'T HAVE INFORMATION
+================================================================
+- Say clearly: "I don't have specific details on that."
+- Add: "That level of detail is usually discussed directly with the team."
+- Suggest related topics you CAN discuss
+- Never invent facts
+
+================================================================
+WHEN USER SAYS THEY DON'T UNDERSTAND
+================================================================
+- Start with: "Let me put it more simply:" or "No problem, let me explain differently:"
+- Use plain everyday language
+- Use a real-world analogy if helpful
+- Be patient and encouraging
+
+================================================================
+HANDLE TYPOS & MISSPELLINGS
+================================================================
+Always understand intent despite spelling mistakes.
+"noline"=online, "websit"=website, "servise"=service, "cantact"=contact
+Never ask to repeat because of a typo.
+
+================================================================
+OFF-TOPIC OR SUSPICIOUS QUESTIONS
+================================================================
+- Redirect ONCE back to Wasla topics
+- If it continues, end politely
+- If offensive or very rude: respond with ONLY "Chat ended." — nothing else
+
+IF ASKED "how can I make money?" or "give me a business idea":
+Say ONLY: "This chatbot is here to explain how Wasla Solutions supports businesses
+digitally. For broader opportunities, those conversations happen directly with the partners."
+Do NOT elaborate further.
+
+================================================================
+RUDE OR OFFENSIVE INPUT
+================================================================
+First offense: "Change the subject or chat will end!" — nothing else, wait.
+If it continues: "Chat ended." — nothing else.
+
+================================================================
+CONTACT & NEXT STEPS
+================================================================
+If the user asks to contact the team, reach out, speak to someone, or book a meeting, provide contact info immediately. Do not ask a question first.
+Only suggest contact when the user shows GENUINE interest otherwise (after 3+ exchanges).
+NEVER push this early.
+
+When appropriate:
+- Email: info@waslasolutions.com
+- Book a call: via the Calendly feature on the Wasla website
+
+================================================================
+HOW TO END CONVERSATIONS
+================================================================
+Prefer endings like:
+- "Happy to connect you with the team to explore this further."
+- "If you'd like, we can continue this conversation with the team."
+- "Let me know if you want to take this further."
+No pressure. No urgency.
+
+================================================================
+TONE — ALWAYS
+================================================================
+- Calm and self-assured
+- Professional but warm
+- Not apologetic, not submissive
+- Not salesy, not desperate
+- Say less when unsure — ask one smart question instead
+- Protect Wasla's positioning at all times
+
+Wasla is building slowly, correctly, powerfully, with intention.
+You are an extension of this mindset.
+When in doubt: say less, ask one smart question, keep dignity intact.
 """
 
 # ===============================
 # Prompt Template with History
 # ===============================
 BOT_PROMPT = PromptTemplate(
-    template="""You are {bot_name}, assistant for {company_name}.
+    template="""You are Wasla AI, the official assistant for Wasla Solutions.
 
-## CONVERSATION HISTORY (last few exchanges):
+## CONVERSATION HISTORY:
 {history}
 
-## RELEVANT DOCUMENTS:
+## RELEVANT KNOWLEDGE BASE CONTENT:
 {context}
 
-## CURRENT QUESTION:
+## USER'S CURRENT MESSAGE:
 {question}
 
 ## INSTRUCTIONS:
-- Answer based on the document context above
-- Use the conversation history to understand context and avoid repeating yourself
-- If documents don't contain the answer, say so clearly and suggest related topics
-- Vary your response style — do NOT repeat the same opening as your last response
-- Be concise, accurate, and helpful
+- Answer based on the knowledge base content above
+- Use conversation history to understand context — never repeat yourself
+- Follow ALL rules from your system prompt strictly
+- Ask ONE smart clarifying question when needed — never multiple at once
+- Surface only the capability pillar relevant to this user's need
+- Never list all services — reveal gradually based on conversation
+- Be calm, grounded, and intentional in every response
+- When unsure: say less, ask one smart question
 
 YOUR RESPONSE:""",
-    input_variables=["bot_name", "company_name", "history", "context", "question"]
+    input_variables=["history", "context", "question"]
 )
 
 # ===============================
-# UI Theme
+# UI Theme — Wasla Professional
 # ===============================
 def set_theme():
-    color = CONFIG["primary_color"]
-    st.markdown(f"""
+    st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        * {{ font-family: 'Inter', sans-serif; }}
-        .stApp {{
-            background-color: #0B1020;
-            color: #EAEAF2;
-        }}
-        section.main > div {{
-            max-width: 900px;
-            margin: auto;
-        }}
-        h1 {{
+        /* ── Fonts ── */
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+        /* ── CSS Variables ── */
+        :root {
+            --bg-deep:       #080C12;
+            --bg-surface:    #0E1420;
+            --bg-card:       #111827;
+            --bg-input:      #0D1219;
+            --border:        rgba(255,255,255,0.07);
+            --border-accent: rgba(196,164,100,0.3);
+            --gold:          #C4A464;
+            --gold-light:    #E2C98A;
+            --gold-dim:      rgba(196,164,100,0.15);
+            --text-primary:  #F0EDE8;
+            --text-secondary:#9A9690;
+            --text-muted:    #5A5650;
+            --user-bubble:   #13243A;
+            --user-border:   rgba(100,160,255,0.2);
+            --font-display:  'Cormorant Garamond', serif;
+            --font-body:     'DM Sans', sans-serif;
+            --radius:        14px;
+            --radius-sm:     8px;
+        }
+
+        /* ── Global Reset ── */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        html, body, .stApp {
+            background-color: var(--bg-deep) !important;
+            color: var(--text-primary) !important;
+            font-family: var(--font-body) !important;
+            font-weight: 300;
+        }
+
+        /* ── Subtle noise texture overlay ── */
+        .stApp::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.4;
+        }
+
+        /* ── Main content width ── */
+        section.main > div {
+            max-width: 860px !important;
+            margin: 0 auto !important;
+            padding-top: 1.5rem !important;
+        }
+
+        /* ── Page Header ── */
+        h1 {
+            font-family: var(--font-display) !important;
+            font-weight: 300 !important;
+            font-size: 2.6rem !important;
+            letter-spacing: 0.12em !important;
+            color: var(--text-primary) !important;
+            text-align: center !important;
+            margin-bottom: 0.1rem !important;
+            text-transform: uppercase;
+        }
+
+        /* ── Subtitle ── */
+        .stMarkdown p em {
+            font-family: var(--font-body) !important;
+            font-size: 0.78rem !important;
+            letter-spacing: 0.25em !important;
+            color: var(--gold) !important;
+            text-transform: uppercase !important;
+            display: block;
             text-align: center;
-            font-size: 36px;
-            font-weight: 700;
-            color: #FFFFFF;
-        }}
-        .stChatMessage {{
-            background-color: #1E1E2E;
-            border-radius: 12px;
-            padding: 12px;
-            margin: 6px 0;
-            border: 1px solid #2D3748;
-        }}
-        [data-testid="chatMessageContent"] {{
-            color: #E5E7EB !important;
-        }}
-        textarea {{
-            background-color: #111827 !important;
-            color: #E5E7EB !important;
-            border-radius: 10px !important;
-            border: 1px solid #2D3748 !important;
-        }}
-        .stButton > button {{
-            background-color: {color} !important;
-            color: white !important;
-            border-radius: 10px !important;
-            border: none !important;
-            transition: all 0.2s ease;
-        }}
-        .stButton > button:hover {{
+            margin-bottom: 1.8rem !important;
+        }
+
+        /* ── Gold divider line under header ── */
+        h1::after {
+            content: '';
+            display: block;
+            width: 40px;
+            height: 1px;
+            background: var(--gold);
+            margin: 0.7rem auto 0;
+            opacity: 0.6;
+        }
+
+        /* ── Chat Messages — Assistant ── */
+        [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border) !important;
+            border-left: 2px solid var(--gold) !important;
+            border-radius: var(--radius) !important;
+            padding: 1.1rem 1.3rem !important;
+            margin: 0.6rem 0 !important;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3) !important;
+            animation: fadeUp 0.35s ease forwards;
+        }
+
+        /* ── Chat Messages — User ── */
+        [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+            background: var(--user-bubble) !important;
+            border: 1px solid var(--user-border) !important;
+            border-radius: var(--radius) !important;
+            padding: 1rem 1.3rem !important;
+            margin: 0.6rem 0 !important;
+            animation: fadeUp 0.3s ease forwards;
+        }
+
+        /* ── Message text ── */
+        [data-testid="chatMessageContent"] {
+            font-family: var(--font-body) !important;
+            font-size: 0.93rem !important;
+            line-height: 1.75 !important;
+            color: var(--text-primary) !important;
+            font-weight: 300 !important;
+        }
+
+        /* ── Avatar icons ── */
+        [data-testid="chatAvatarIcon-assistant"] {
+            background: var(--gold-dim) !important;
+            border: 1px solid var(--border-accent) !important;
+            color: var(--gold) !important;
+        }
+        [data-testid="chatAvatarIcon-user"] {
+            background: rgba(100,160,255,0.1) !important;
+            border: 1px solid var(--user-border) !important;
+        }
+
+        /* ── Chat Input ── */
+        [data-testid="stChatInput"] {
+            background: var(--bg-input) !important;
+            border: 1px solid var(--border-accent) !important;
+            border-radius: var(--radius) !important;
+            box-shadow: 0 0 0 0px var(--gold);
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        [data-testid="stChatInput"]:focus-within {
+            border-color: var(--gold) !important;
+            box-shadow: 0 0 0 3px var(--gold-dim) !important;
+        }
+        [data-testid="stChatInput"] textarea {
+            background: transparent !important;
+            color: var(--text-primary) !important;
+            font-family: var(--font-body) !important;
+            font-size: 0.9rem !important;
+            font-weight: 300 !important;
+            caret-color: var(--gold) !important;
+        }
+        [data-testid="stChatInput"] textarea::placeholder {
+            color: var(--text-muted) !important;
+            letter-spacing: 0.03em;
+        }
+        [data-testid="stChatInput"] button {
+            background: var(--gold) !important;
+            border-radius: var(--radius-sm) !important;
+            color: #080C12 !important;
+            transition: opacity 0.2s !important;
+        }
+        [data-testid="stChatInput"] button:hover {
             opacity: 0.85 !important;
-        }}
-        .stExpander {{
-            background-color: #1E1E2E;
-            border: 1px solid #2D3748;
-            border-radius: 10px;
-        }}
-        footer {{visibility: hidden;}}
-        div[data-testid="column"] button {{
-            background-color: #2D3748 !important;
-            color: #E5E7EB !important;
-            border: 1px solid #4A5568 !important;
-        }}
+        }
+
+        /* ── Sidebar ── */
+        [data-testid="stSidebar"] {
+            background: var(--bg-surface) !important;
+            border-right: 1px solid var(--border) !important;
+        }
+        [data-testid="stSidebar"] * {
+            font-family: var(--font-body) !important;
+        }
+
+        /* ── Sidebar title ── */
+        [data-testid="stSidebar"] h1,
+        [data-testid="stSidebar"] .stMarkdown h1 {
+            font-family: var(--font-display) !important;
+            font-size: 1.4rem !important;
+            letter-spacing: 0.1em !important;
+            color: var(--gold) !important;
+            text-align: left !important;
+            font-weight: 400 !important;
+        }
+        [data-testid="stSidebar"] h1::after { display: none; }
+
+        /* ── Sidebar subheaders ── */
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3 {
+            font-size: 0.68rem !important;
+            letter-spacing: 0.2em !important;
+            text-transform: uppercase !important;
+            color: var(--text-muted) !important;
+            font-weight: 500 !important;
+            margin-top: 1.2rem !important;
+        }
+
+        /* ── Sidebar divider ── */
+        hr {
+            border-color: var(--border) !important;
+            margin: 1rem 0 !important;
+        }
+
+        /* ── All Buttons ── */
+        .stButton > button {
+            background: transparent !important;
+            color: var(--text-secondary) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-sm) !important;
+            font-family: var(--font-body) !important;
+            font-size: 0.78rem !important;
+            letter-spacing: 0.08em !important;
+            font-weight: 400 !important;
+            padding: 0.5rem 1rem !important;
+            transition: all 0.2s ease !important;
+            width: 100% !important;
+        }
+        .stButton > button:hover {
+            border-color: var(--gold) !important;
+            color: var(--gold) !important;
+            background: var(--gold-dim) !important;
+        }
+
+        /* ── Primary button (Build KB) ── */
+        .stButton > button[kind="primary"] {
+            background: var(--gold) !important;
+            color: #080C12 !important;
+            border: none !important;
+            font-weight: 500 !important;
+        }
+        .stButton > button[kind="primary"]:hover {
+            opacity: 0.85 !important;
+            color: #080C12 !important;
+        }
+
+        /* ── Feedback buttons ── */
+        div[data-testid="column"] .stButton > button {
+            background: transparent !important;
+            color: var(--text-muted) !important;
+            border: 1px solid var(--border) !important;
+            font-size: 0.75rem !important;
+            padding: 0.3rem 0.7rem !important;
+        }
+        div[data-testid="column"] .stButton > button:hover {
+            border-color: var(--gold) !important;
+            color: var(--gold) !important;
+            background: var(--gold-dim) !important;
+        }
+
+        /* ── Status boxes ── */
+        [data-testid="stAlert"] {
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-sm) !important;
+            font-size: 0.82rem !important;
+        }
+        .stSuccess {
+            border-left: 2px solid #4ADE80 !important;
+        }
+        .stWarning {
+            border-left: 2px solid var(--gold) !important;
+        }
+        .stError {
+            border-left: 2px solid #F87171 !important;
+        }
+        .stInfo {
+            border-left: 2px solid #60A5FA !important;
+        }
+
+        /* ── Expander (Sources) ── */
+        .stExpander {
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-sm) !important;
+            margin-top: 0.5rem !important;
+        }
+        .stExpander summary {
+            font-size: 0.75rem !important;
+            letter-spacing: 0.08em !important;
+            color: var(--text-muted) !important;
+            font-weight: 400 !important;
+        }
+        .stExpander summary:hover {
+            color: var(--gold) !important;
+        }
+
+        /* ── Spinner ── */
+        .stSpinner > div {
+            border-top-color: var(--gold) !important;
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gold-dim);
+        }
+
+        /* ── Animations ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Hide Streamlit chrome ── */
+        #MainMenu { visibility: hidden; }
+        footer { visibility: hidden; }
+        header { visibility: hidden; }
+
+        /* ── Sidebar status text ── */
+        [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] li {
+            font-size: 0.82rem !important;
+            color: var(--text-secondary) !important;
+            line-height: 1.6 !important;
+        }
+
+        /* ── Download buttons ── */
+        [data-testid="stDownloadButton"] button {
+            font-size: 0.75rem !important;
+            letter-spacing: 0.06em !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -490,6 +904,26 @@ def save_feedback(question, response, feedback):
 # ===============================
 def process_question(prompt, vectorstore, llm):
     try:
+        prompt_lower = prompt.lower().strip()
+        contact_requests = [
+            "contact the team", "contact team", "contact your team", "contact you", "contact us",
+            "reach out", "speak to someone", "speak with someone",
+            "talk to someone", "talk with someone", "schedule a call",
+            "book a call", "book a meeting", "schedule a meeting"
+        ]
+        if any(phrase in prompt_lower for phrase in contact_requests) or (
+            "contact" in prompt_lower and any(word in prompt_lower for word in ["team", "you", "someone", "support"])
+        ):
+            return (
+                "For direct contact, email info@waslasolutions.com or book a meeting via Calendly on the Wasla website.",
+                []
+            )
+
+        explain_more_requests = [
+            "explain more", "tell me more", "more detail", "more details", "elaborate more"
+        ]
+        is_explain_more = any(phrase in prompt_lower for phrase in explain_more_requests)
+
         # FIX 1: Handle greetings at ANY point in conversation (removed <= 2 limit)
         if is_greeting(prompt):
             st.session_state.tracker.increment_count()
@@ -503,7 +937,7 @@ def process_question(prompt, vectorstore, llm):
         docs = retriever.get_relevant_documents(prompt)
 
         # FIX 3: Filter out empty or whitespace-only document chunks
-        docs = [doc for doc in docs if doc.page_content.strip()]
+        docs = [doc for doc in docs if doc.page_content.strip() and len(doc.page_content.strip()) > 20]
 
         # FIX 2: Relevance check — if no docs found, return clean fallback
         if len(docs) == 0:
@@ -531,12 +965,16 @@ def process_question(prompt, vectorstore, llm):
         history = build_history_string(st.session_state.messages, max_exchanges=4)
 
         # Format prompt
+        question_text = prompt
+        if is_explain_more:
+            question_text = (
+                f"{prompt}. Please provide 2-3 sentences of additional explanation first, then ask one follow-up question."
+            )
+
         formatted_prompt = BOT_PROMPT.format(
-            bot_name=CONFIG["bot_name"],
-            company_name=CONFIG["company_name"],
             history=history,
             context=context,
-            question=prompt
+            question=question_text
         )
 
         # Get response
@@ -554,28 +992,8 @@ def process_question(prompt, vectorstore, llm):
 # Welcome Message
 # ===============================
 def get_welcome_message():
-    bot = CONFIG["bot_name"]
-    company = CONFIG["company_name"]
-    options = [
-        f"""👋 **Hi! I'm {bot}, your AI assistant for {company}.**
-
-I can help you with:
-- 📋 Questions about our **services and products**
-- 🔍 Finding **specific information** from our documents
-- 💡 Getting **clear, accurate answers** fast
-
-I only answer from our knowledge base, so my answers are always grounded in real information. What would you like to know?""",
-
-        f"""**Hello! I'm {bot}** — here to help you explore {company}.
-
-Ask me about:
-- 📋 Our **offerings and capabilities**
-- 🔍 **Specific details** from our documents
-- 💡 How we can **support your needs**
-
-What's on your mind?""",
-    ]
-    return random.choice(options)
+    # Per PDF2: mandatory fixed first message
+    return "Hi! Great to have you here! I'm ready to help you learn more about Wasla and how we can support your business growth and digital needs. Let me know how we can assist you."
 
 # ===============================
 # Main App
@@ -616,45 +1034,46 @@ def main():
 
     # ---- SIDEBAR ----
     with st.sidebar:
-        st.title(f"{CONFIG['page_icon']} {CONFIG['company_name']}")
+        st.title("WASLA")
+        st.markdown("<p style='font-size:0.72rem;letter-spacing:0.18em;color:#C4A464;text-transform:uppercase;margin-top:-0.5rem;margin-bottom:1rem;'>Solutions</p>", unsafe_allow_html=True)
         st.markdown("---")
 
         # API Key
-        st.subheader("🔑 API Setup")
+        st.subheader("API Setup")
         if "GROQ_API_KEY" in st.secrets:
-            st.success("✅ Groq API key found")
-            if st.button("🚀 Initialize AI", use_container_width=True):
-                with st.spinner("Loading AI model..."):
+            st.success("API key configured")
+            if st.button("Initialize AI", use_container_width=True):
+                with st.spinner("Connecting..."):
                     st.session_state.llm = load_llm()
                 if st.session_state.llm:
                     st.session_state.messages.append({
                         "role": "assistant",
-                        "content": f"✅ **{CONFIG['bot_name']} is ready!** Ask me anything about {CONFIG['company_name']}.",
+                        "content": "I'm ready. What are you working on or trying to build?",
                         "sources": [],
                         "feedback": None
                     })
         else:
-            st.error("❌ GROQ_API_KEY not set")
+            st.error("GROQ_API_KEY not set")
             st.info(
-                "Add your key to `.streamlit/secrets.toml`:\n"
-                "```\nGROQ_API_KEY = 'your_key_here'\n```\n"
-                "Get a free key at [console.groq.com](https://console.groq.com)"
+                "Add to `.streamlit/secrets.toml`:\n"
+                "```\nGROQ_API_KEY = 'your_key'\n```\n"
+                "Free key: [console.groq.com](https://console.groq.com)"
             )
 
         st.markdown("---")
 
         # Knowledge Base
-        st.subheader("📚 Knowledge Base")
+        st.subheader("Knowledge Base")
         if db_exists:
             if st.session_state.vectorstore is None:
-                with st.spinner("Loading knowledge base..."):
+                with st.spinner("Loading..."):
                     st.session_state.vectorstore = init_vectorstore()
             else:
-                st.success("✅ Knowledge base ready")
+                st.success("Knowledge base active")
             if st.session_state.vectorstore:
                 try:
                     count = st.session_state.vectorstore._collection.count()
-                    st.info(f"📊 {count} document chunks loaded")
+                    st.info(f"{count} document chunks indexed")
                 except:
                     pass
         else:
@@ -662,50 +1081,50 @@ def main():
             docs_path = Path("docs")
             pdf_files = list(docs_path.glob("**/*.pdf")) if docs_path.exists() else []
             if pdf_files:
-                st.info(f"📄 {len(pdf_files)} PDF(s) ready to process")
-                if st.button("⚙️ Build Knowledge Base", type="primary", use_container_width=True):
+                st.info(f"{len(pdf_files)} PDF(s) ready to index")
+                if st.button("Build Knowledge Base", type="primary", use_container_width=True):
                     success = create_database_from_pdfs()
                     if success:
-                        st.success("✅ Done!")
+                        st.success("Knowledge base built.")
                         st.rerun()
             else:
-                st.info("Add PDF files to the `docs/` folder, then come back here.")
+                st.info("Place PDF files in the `docs/` folder.")
 
         st.markdown("---")
 
         # Controls
-        st.subheader("⚙️ Controls")
+        st.subheader("Controls")
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 Reset AI", use_container_width=True):
+            if st.button("Reset AI", use_container_width=True):
                 st.cache_resource.clear()
                 st.session_state.llm = None
                 st.rerun()
         with col2:
-            if st.button("🗑️ Clear Chat", use_container_width=True):
+            if st.button("Clear Chat", use_container_width=True):
                 first_msg = st.session_state.messages[0] if st.session_state.messages else None
                 st.session_state.messages = [first_msg] if first_msg else []
                 st.session_state.tracker = ConversationTracker()
                 st.rerun()
 
         # Status & Exports
-        with st.expander("ℹ️ System Status"):
-            st.write(f"🔑 API Key: {'✅' if 'GROQ_API_KEY' in st.secrets else '❌'}")
-            st.write(f"🤖 AI Model: {'✅' if st.session_state.llm else '❌'}")
-            st.write(f"📚 Knowledge Base: {'✅' if db_exists else '❌'}")
-            st.write(f"💬 Messages: {len(st.session_state.messages)}")
-            st.write(f"🧠 Topics tracked: {', '.join(st.session_state.tracker.topics_discussed) or 'none yet'}")
+        with st.expander("System Status"):
+            st.write(f"API Key: {'✅' if 'GROQ_API_KEY' in st.secrets else '❌'}")
+            st.write(f"AI Model: {'✅' if st.session_state.llm else '❌'}")
+            st.write(f"Knowledge Base: {'✅' if db_exists else '❌'}")
+            st.write(f"Messages: {len(st.session_state.messages)}")
+            st.write(f"Topics: {', '.join(st.session_state.tracker.topics_discussed) or '—'}")
 
             if os.path.exists("chat_history.csv"):
                 with open("chat_history.csv", "r") as f:
-                    st.download_button("📥 Export Chat", f, "chat_history.csv", use_container_width=True)
+                    st.download_button("Export Chat History", f, "chat_history.csv", use_container_width=True)
             if os.path.exists("feedback.csv"):
                 with open("feedback.csv", "r") as f:
-                    st.download_button("📥 Export Feedback", f, "feedback.csv", use_container_width=True)
+                    st.download_button("Export Feedback", f, "feedback.csv", use_container_width=True)
 
     # ---- MAIN CHAT UI ----
-    st.title(f"💬 {CONFIG['bot_name']}")
-    st.markdown(f"*Powered by {CONFIG['company_name']}'s knowledge base*")
+    st.title("WASLA")
+    st.markdown("*Your digital intelligence layer*")
 
     # Display messages
     for i, message in enumerate(st.session_state.messages):
@@ -725,29 +1144,23 @@ def main():
             if (message["role"] == "assistant"
                     and i == len(st.session_state.messages) - 1
                     and message.get("feedback") is None
-                    and i > 0):  # don't show on welcome message
-                col1, col2 = st.columns(2)
+                    and i > 0):
+                col1, col2, col3 = st.columns([1, 1, 6])
                 with col1:
-                    if st.button("👍 Helpful", key=f"pos_{i}"):
+                    if st.button("↑", key=f"pos_{i}", help="Helpful"):
                         st.session_state.messages[i]["feedback"] = "positive"
                         if st.session_state.messages[i - 1]["role"] == "user":
-                            save_feedback(
-                                st.session_state.messages[i - 1]["content"],
-                                message["content"], "positive"
-                            )
+                            save_feedback(st.session_state.messages[i-1]["content"], message["content"], "positive")
                         st.rerun()
                 with col2:
-                    if st.button("👎 Not helpful", key=f"neg_{i}"):
+                    if st.button("↓", key=f"neg_{i}", help="Not helpful"):
                         st.session_state.messages[i]["feedback"] = "negative"
                         if st.session_state.messages[i - 1]["role"] == "user":
-                            save_feedback(
-                                st.session_state.messages[i - 1]["content"],
-                                message["content"], "negative"
-                            )
+                            save_feedback(st.session_state.messages[i-1]["content"], message["content"], "negative")
                         st.rerun()
 
     # ---- CHAT INPUT ----
-    if prompt := st.chat_input(f"Ask {CONFIG['bot_name']} anything..."):
+    if prompt := st.chat_input("Ask about Wasla Solutions..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
