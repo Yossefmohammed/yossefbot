@@ -255,14 +255,26 @@ First offense: "Change the subject or chat will end!" — nothing else, wait.
 If it continues: "Chat ended." — nothing else.
 
 ================================================================
-CONTACT & NEXT STEPS
+CONTACT & NEXT STEPS — CRITICAL RULE
 ================================================================
-Only suggest contact when the user shows GENUINE interest (after 3+ exchanges).
-NEVER push this early.
+HIGHEST PRIORITY: If the user explicitly asks to contact the team, reach out,
+speak to someone, book a meeting, or get in touch — give contact info IMMEDIATELY.
+Do NOT ask questions first. Do NOT delay. Just give the info.
 
-When appropriate:
+Contact details:
 - Email: info@waslasolutions.com
 - Book a call: via the Calendly feature on the Wasla website
+
+For all other cases, only suggest contact after 3+ exchanges of genuine interest.
+NEVER push this early in general conversation.
+
+================================================================
+WHEN USER SAYS "EXPLAIN MORE" OR "TELL ME MORE"
+================================================================
+ALWAYS give more information FIRST — at least 2-3 sentences expanding on the topic.
+THEN ask one follow-up question at the end if needed.
+NEVER respond to "explain more" or "tell me more" with only a question.
+The user wants information, not another question.
 
 ================================================================
 HOW TO END CONVERSATIONS
@@ -915,8 +927,8 @@ def process_question(prompt, vectorstore, llm):
         )
         docs = retriever.get_relevant_documents(prompt)
 
-        # FIX 3: Filter out empty or whitespace-only document chunks
-        docs = [doc for doc in docs if doc.page_content.strip()]
+        # Filter out empty or very short document chunks (must be >20 chars)
+        docs = [doc for doc in docs if len(doc.page_content.strip()) > 20]
 
         # FIX 2: Relevance check — if no docs found, return clean fallback
         if len(docs) == 0:
@@ -998,7 +1010,6 @@ def main():
         st.session_state.welcome_shown = True
         st.session_state.messages.append({
             "role": "assistant",
-            "sender": CONFIG["bot_name"],
             "content": get_welcome_message(),
             "sources": [],
             "feedback": None
@@ -1019,14 +1030,7 @@ def main():
             if st.button("Initialize AI", use_container_width=True):
                 with st.spinner("Connecting..."):
                     st.session_state.llm = load_llm()
-                if st.session_state.llm:
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "sender": CONFIG["bot_name"],
-                        "content": "I'm ready. What are you working on or trying to build?",
-                        "sources": [],
-                        "feedback": None
-                    })
+                # No second message added — welcome message is enough
         else:
             st.error("GROQ_API_KEY not set")
             st.info(
@@ -1098,15 +1102,12 @@ def main():
                     st.download_button("Export Feedback", f, "feedback.csv", use_container_width=True)
 
     # ---- MAIN CHAT UI ----
-    st.title(CONFIG["bot_name"])
+    st.title("WASLA")
     st.markdown("*Your digital intelligence layer*")
 
     # Display messages
     for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
-            if message["role"] == "assistant":
-                sender = message.get("sender", CONFIG["bot_name"])
-                st.markdown(f"**{sender}**")
             st.markdown(message["content"])
 
             # Show sources if available — filter empty ones
@@ -1154,7 +1155,7 @@ def main():
                         )
                         st.markdown(response)
                         st.session_state.messages.append({
-                            "role": "assistant", "sender": CONFIG["bot_name"], "content": response,
+                            "role": "assistant", "content": response,
                             "sources": [], "feedback": None
                         })
                         return
@@ -1170,7 +1171,7 @@ def main():
                         )
                         st.markdown(response)
                         st.session_state.messages.append({
-                            "role": "assistant", "sender": CONFIG["bot_name"], "content": response,
+                            "role": "assistant", "content": response,
                             "sources": [], "feedback": None
                         })
                         return
@@ -1187,7 +1188,7 @@ def main():
                         )
                         st.markdown(response)
                         st.session_state.messages.append({
-                            "role": "assistant", "sender": CONFIG["bot_name"], "content": response,
+                            "role": "assistant", "content": response,
                             "sources": [], "feedback": None
                         })
                         return
@@ -1221,7 +1222,6 @@ def main():
                     # Store message — filter empty sources
                     st.session_state.messages.append({
                         "role": "assistant",
-                        "sender": CONFIG["bot_name"],
                         "content": response,
                         "sources": [doc.page_content for doc in sources if doc.page_content.strip()] if sources else [],
                         "feedback": None
@@ -1231,7 +1231,7 @@ def main():
                     error_msg = f"❌ **Error:** {str(e)}"
                     st.error(error_msg)
                     st.session_state.messages.append({
-                        "role": "assistant", "sender": CONFIG["bot_name"], "content": error_msg,
+                        "role": "assistant", "content": error_msg,
                         "sources": [], "feedback": None
                     })
 
